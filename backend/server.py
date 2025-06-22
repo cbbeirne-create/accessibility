@@ -92,8 +92,12 @@ class AccessibilityScanner:
         chrome_options.add_argument("--allow-running-insecure-content")
         chrome_options.add_argument("--ignore-certificate-errors")
         
+        # Use system chromium binary
+        chrome_options.binary_location = "/usr/bin/chromium"
+        
         try:
-            service = Service(ChromeDriverManager().install())
+            # Use system chromedriver
+            service = Service("/usr/bin/chromedriver")
             driver = webdriver.Chrome(service=service, options=chrome_options)
             return driver
         except Exception as e:
