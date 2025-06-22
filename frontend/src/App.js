@@ -210,7 +210,7 @@ const ScanPage = () => {
                         <div key={index} className="bg-red-50 border border-red-200 rounded-lg p-3">
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
-                              <h7 className="font-medium text-red-800">{violation.id}</h7>
+                              <h6 className="font-medium text-red-800">{violation.id}</h6>
                               <p className="text-sm text-red-600 mt-1">{violation.description}</p>
                               <div className="flex items-center space-x-4 mt-2 text-xs text-red-500">
                                 <span>Impact: {violation.impact}</span>
