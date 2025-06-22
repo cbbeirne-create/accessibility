@@ -655,14 +655,16 @@ class AccessibilityScanner:
             axe.inject()
             results = axe.run()
             
-            # Calculate score based on violations
+            # Calculate score and format results
             score = AccessibilityScanner.calculate_axe_score(results)
+            formatted_issues = AccessibilityScanner.format_axe_issues(results)
             
             return {
                 "success": True,
                 "score": score,
-                "results": results,
-                "tool": "axe-core"
+                "results": formatted_issues,
+                "tool": "axe-core",
+                "raw_results": results  # Keep raw results for debugging
             }
             
         except Exception as e:
