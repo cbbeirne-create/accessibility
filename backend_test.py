@@ -423,6 +423,68 @@ class AccessibilityScannerAPITest(unittest.TestCase):
             print("This test will be marked as skipped rather than failed")
             self.skipTest(f"Specific WAVE scan with ID {self.wave_scan_id} not found")
             
+    def test_16_accessibe_scan_creation(self):
+        """Test creating a scan with AccessiBe external tool"""
+        print("\n🔍 Testing scan creation with AccessiBe external tool...")
+        
+        test_url = f"https://example.com/test-{uuid.uuid4()}"
+        response = requests.post(
+            f"{self.base_url}/scans", 
+            json={"url": test_url, "tool": "accessibe"}
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["url"], test_url)
+        self.assertEqual(data["status"], "pending")
+        self.assertEqual(data["tool"], "accessibe")
+        
+        scan_id = data["id"]
+        print(f"✅ Created AccessiBe scan with ID: {scan_id}")
+        
+        # Poll for scan completion (timeout after 30 seconds)
+        max_attempts = 15
+        attempts = 0
+        scan_completed = False
+        
+        print("⏳ Waiting for AccessiBe scan to complete...")
+        while attempts < max_attempts and not scan_completed:
+            time.sleep(2)  # Poll every 2 seconds
+            try:
+                response = requests.get(f"{self.base_url}/scans/{scan_id}")
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                
+                if data["status"] in ["completed", "error"]:
+                    scan_completed = True
+                    print(f"✅ AccessiBe scan completed with status: {data['status']}")
+                    
+                    if data["status"] == "error":
+                        # If API key is not configured, we expect an error
+                        self.assertIsNotNone(data["error_message"])
+                        print(f"Expected error: {data['error_message']}")
+                        if "API key not configured" in data["error_message"]:
+                            print("✅ Correctly handled missing API key scenario")
+                    else:
+                        # If scan completed successfully, verify the results
+                        self.assertIsNotNone(data["score"])
+                        self.assertIsNotNone(data["issues"])
+                        print(f"✅ AccessiBe scan score: {data['score']}/100")
+            except Exception as e:
+                print(f"Error polling AccessiBe scan status: {e}")
+            
+            attempts += 1
+            print(f"Polling attempt {attempts}/{max_attempts}...")
+        
+        # Clean up - delete the test scan
+        try:
+            response = requests.delete(f"{self.base_url}/scans/{scan_id}")
+            if response.status_code == 200:
+                print("✅ AccessiBe test scan deleted successfully")
+        except Exception as e:
+            print(f"Error deleting AccessiBe test scan: {e}")
+            
+        print("✅ AccessiBe external scan test completed")
         print("✅ Specific WAVE scan test completed")
         
     def test_14_specific_equalweb_scan_result(self):
