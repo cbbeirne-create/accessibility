@@ -1052,7 +1052,7 @@ const Dashboard = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
                       <div className="text-lg font-bold text-green-600">
-                        {scan.issues.passes ? scan.issues.passes.length : 0}
+                        {scan.issues.passed ? scan.issues.passed.length : 0}
                       </div>
                       <div className="text-xs text-green-700">Passed</div>
                     </div>
