@@ -740,14 +740,29 @@ async def create_scan_request(input: ScanRequestCreate, background_tasks: Backgr
 
 
 @api_router.get("/scans", response_model=List[ScanRequest])
-async def get_scan_requests():
-    """Get all scan requests"""
+async def get_scan_requests(user_id: Optional[str] = None):
+    """Get all scan requests, optionally filtered by user_id"""
     try:
-        scan_requests = await db.scan_requests.find().sort("createdAt", -1).to_list(100)
+        query = {}
+        if user_id:
+            query["user_id"] = user_id
+            
+        scan_requests = await db.scan_requests.find(query).sort("createdAt", -1).to_list(100)
         return [ScanRequest(**scan_request) for scan_request in scan_requests]
     except Exception as e:
         logging.error(f"Error fetching scan requests: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch scan requests")
+
+
+@api_router.get("/users/{user_id}/scans", response_model=List[ScanRequest])
+async def get_user_scans(user_id: str):
+    """Get all scan requests for a specific user"""
+    try:
+        scan_requests = await db.scan_requests.find({"user_id": user_id}).sort("createdAt", -1).to_list(100)
+        return [ScanRequest(**scan_request) for scan_request in scan_requests]
+    except Exception as e:
+        logging.error(f"Error fetching user scans: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch user scans")
 
 
 @api_router.get("/scans/{scan_id}", response_model=ScanRequest)
