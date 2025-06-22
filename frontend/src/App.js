@@ -6,22 +6,263 @@ import axios from "axios";
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// User Management Utility
+const UserManager = {
+  getUserId: () => {
+    let userId = localStorage.getItem('accessibility_scanner_user_id');
+    if (!userId) {
+      userId = 'user_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('accessibility_scanner_user_id', userId);
+    }
+    return userId;
+  },
+  
+  clearUser: () => {
+    localStorage.removeItem('accessibility_scanner_user_id');
+  }
+};
+
 // Navigation Component
 const Navigation = () => {
+  const userId = UserManager.getUserId();
+  
   return (
     <nav className="bg-blue-600 text-white p-4 mb-8">
       <div className="container mx-auto flex justify-between items-center">
         <h1 className="text-xl font-bold">Accessibility Scanner</h1>
-        <div className="space-x-4">
+        <div className="flex items-center space-x-4">
           <Link to="/" className="hover:text-blue-200 transition-colors">
             Dashboard
           </Link>
           <Link to="/scan" className="hover:text-blue-200 transition-colors">
             New Scan
           </Link>
+          <Link to="/my-scans" className="hover:text-blue-200 transition-colors">
+            My Scans
+          </Link>
+          <div className="text-sm text-blue-200">
+            User: {userId.substring(0, 8)}...
+          </div>
         </div>
       </div>
     </nav>
+  );
+};
+
+// My Scans Page Component
+const MyScansPage = () => {
+  const [scans, setScans] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+  const userId = UserManager.getUserId();
+
+  useEffect(() => {
+    fetchUserScans();
+    
+    // Auto-refresh every 10 seconds for pending scans
+    const interval = setInterval(fetchUserScans, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchUserScans = async () => {
+    try {
+      const response = await axios.get(`${API}/users/${userId}/scans`);
+      setScans(response.data);
+      setError("");
+    } catch (error) {
+      console.error("Error fetching user scans:", error);
+      setError("Failed to fetch your scans");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed':
+        return 'text-green-600 bg-green-100';
+      case 'error':
+        return 'text-red-600 bg-red-100';
+      case 'pending':
+        return 'text-yellow-600 bg-yellow-100';
+      default:
+        return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  const getScoreColor = (score) => {
+    if (score >= 80) return 'text-green-600';
+    if (score >= 60) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+  };
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 max-w-6xl">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">Loading your scans...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 max-w-6xl">
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">My Accessibility Scans</h1>
+            <p className="text-gray-600">Track and manage your website accessibility scan history</p>
+          </div>
+          <Link
+            to="/scan"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+          >
+            New Scan
+          </Link>
+        </div>
+
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+            {error}
+          </div>
+        )}
+
+        {scans.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-md p-12 text-center">
+            <div className="text-gray-400 text-6xl mb-4">📊</div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">No scans yet</h2>
+            <p className="text-gray-600 mb-6">Start your first accessibility scan to see results here.</p>
+            <Link
+              to="/scan"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+            >
+              Run Your First Scan
+            </Link>
+          </div>
+        ) : (
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-800">
+                Scan History ({scans.length} {scans.length === 1 ? 'scan' : 'scans'})
+              </h2>
+            </div>
+            
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Website URL
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date & Time
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tool
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Score
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {scans.map((scan) => (
+                    <tr key={scan.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="max-w-xs">
+                          <div className="text-sm font-medium text-gray-900 truncate">{scan.url}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{formatDate(scan.createdAt)}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                          {scan.tool || "axe-core"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(scan.status)}`}>
+                          {scan.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {scan.score !== null ? (
+                          <span className={`text-lg font-bold ${getScoreColor(scan.score)}`}>
+                            {scan.score}/100
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => navigate(`/scan-results/${scan.id}`)}
+                          className="bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+                        >
+                          View Results
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden">
+              {scans.map((scan) => (
+                <div key={scan.id} className="border-b border-gray-200 p-6">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-medium text-gray-900 truncate">{scan.url}</h3>
+                      <p className="text-xs text-gray-500 mt-1">{formatDate(scan.createdAt)}</p>
+                    </div>
+                    <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(scan.status)}`}>
+                      {scan.status}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                        {scan.tool || "axe-core"}
+                      </span>
+                      {scan.score !== null && (
+                        <span className={`text-lg font-bold ${getScoreColor(scan.score)}`}>
+                          {scan.score}/100
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => navigate(`/scan-results/${scan.id}`)}
+                      className="bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+                    >
+                      View Results
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
