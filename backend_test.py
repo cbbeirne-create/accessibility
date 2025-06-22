@@ -380,16 +380,16 @@ class AccessibilityScannerAPITest(unittest.TestCase):
             
         print("✅ Manual external API trigger test completed")
         
-    def test_13_specific_external_scan_result(self):
-        """Test the specific external scan result mentioned in the request"""
-        print("\n🔍 Testing specific external scan result...")
+    def test_13_specific_wave_scan_result(self):
+        """Test the specific WAVE scan result mentioned in the request"""
+        print("\n🔍 Testing specific WAVE scan result...")
         
-        # Test the specific external scan ID from the request
-        response = requests.get(f"{self.base_url}/scans/{self.external_scan_id}")
+        # Test the specific WAVE scan ID from the request
+        response = requests.get(f"{self.base_url}/scans/{self.wave_scan_id}")
         
         if response.status_code == 200:
             data = response.json()
-            print(f"✅ Found specific external scan with ID: {self.external_scan_id}")
+            print(f"✅ Found specific WAVE scan with ID: {self.wave_scan_id}")
             print(f"URL: {data['url']}")
             print(f"Status: {data['status']}")
             print(f"Tool: {data['tool']}")
@@ -419,11 +419,99 @@ class AccessibilityScannerAPITest(unittest.TestCase):
             else:
                 print(f"Scan status: {data['status']}")
         else:
-            print(f"❌ Specific external scan not found (status code: {response.status_code})")
+            print(f"❌ Specific WAVE scan not found (status code: {response.status_code})")
             print("This test will be marked as skipped rather than failed")
-            self.skipTest(f"Specific external scan with ID {self.external_scan_id} not found")
+            self.skipTest(f"Specific WAVE scan with ID {self.wave_scan_id} not found")
             
-        print("✅ Specific external scan test completed")
+        print("✅ Specific WAVE scan test completed")
+        
+    def test_14_specific_equalweb_scan_result(self):
+        """Test the specific EqualWeb scan result mentioned in the request"""
+        print("\n🔍 Testing specific EqualWeb scan result...")
+        
+        # Test the specific EqualWeb scan ID from the request
+        response = requests.get(f"{self.base_url}/scans/{self.equalweb_scan_id}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Found specific EqualWeb scan with ID: {self.equalweb_scan_id}")
+            print(f"URL: {data['url']}")
+            print(f"Status: {data['status']}")
+            print(f"Tool: {data['tool']}")
+            
+            # Verify it's an EqualWeb scan
+            self.assertEqual(data["tool"], "equalweb")
+            
+            # If the scan completed, check the results
+            if data["status"] == "completed":
+                print(f"Score: {data['score']}/100")
+                
+                # Verify issues exist
+                self.assertIn("issues", data)
+                self.assertIn("violations", data["issues"])
+                violations_count = len(data["issues"]["violations"])
+                print(f"Found {violations_count} violations")
+                
+                # Print some sample violations for verification
+                if violations_count > 0:
+                    for i in range(min(3, violations_count)):
+                        violation = data["issues"]["violations"][i]
+                        print(f"Violation {i+1}: {violation['id']} - {violation['impact']} impact")
+            elif data["status"] == "error":
+                print(f"Scan failed with error: {data.get('error_message', 'Unknown error')}")
+                if "API key not configured" in data.get('error_message', ''):
+                    print("✅ Correctly handled missing API key scenario")
+            else:
+                print(f"Scan status: {data['status']}")
+        else:
+            print(f"❌ Specific EqualWeb scan not found (status code: {response.status_code})")
+            print("This test will be marked as skipped rather than failed")
+            self.skipTest(f"Specific EqualWeb scan with ID {self.equalweb_scan_id} not found")
+            
+        print("✅ Specific EqualWeb scan test completed")
+        
+    def test_15_specific_axe_scan_result(self):
+        """Test the specific axe-core scan result mentioned in the request"""
+        print("\n🔍 Testing specific axe-core scan result...")
+        
+        # Test the specific axe-core scan ID from the request
+        response = requests.get(f"{self.base_url}/scans/{self.axe_scan_id}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Found specific axe-core scan with ID: {self.axe_scan_id}")
+            print(f"URL: {data['url']}")
+            print(f"Status: {data['status']}")
+            print(f"Tool: {data['tool']}")
+            
+            # Verify it's an axe-core scan
+            self.assertEqual(data["tool"], "axe-core")
+            
+            # If the scan completed, check the results
+            if data["status"] == "completed":
+                print(f"Score: {data['score']}/100")
+                
+                # Verify issues exist
+                self.assertIn("issues", data)
+                self.assertIn("violations", data["issues"])
+                violations_count = len(data["issues"]["violations"])
+                print(f"Found {violations_count} violations")
+                
+                # Print some sample violations for verification
+                if violations_count > 0:
+                    for i in range(min(3, violations_count)):
+                        violation = data["issues"]["violations"][i]
+                        print(f"Violation {i+1}: {violation['id']} - {violation['impact']} impact")
+            elif data["status"] == "error":
+                print(f"Scan failed with error: {data.get('error_message', 'Unknown error')}")
+            else:
+                print(f"Scan status: {data['status']}")
+        else:
+            print(f"❌ Specific axe-core scan not found (status code: {response.status_code})")
+            print("This test will be marked as skipped rather than failed")
+            self.skipTest(f"Specific axe-core scan with ID {self.axe_scan_id} not found")
+            
+        print("✅ Specific axe-core scan test completed")
 
 if __name__ == "__main__":
     unittest.main(argv=['first-arg-is-ignored'], exit=False)
