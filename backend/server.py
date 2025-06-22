@@ -294,52 +294,71 @@ class ExternalAPIScanner:
     
     @staticmethod
     def format_wave_issues(wave_result: Dict[str, Any]) -> Dict[str, Any]:
-        """Format WAVE API results to our standard format"""
+        """Format WAVE API results to standardized issues format"""
         try:
-            violations = []
-            passes = []
+            passed = []
+            failed = []
+            incomplete = []
             
-            # Process WAVE errors as violations
+            # Process WAVE errors as failed issues
             errors = wave_result.get("categories", {}).get("error", {}).get("items", {})
             for error_type, error_data in errors.items():
-                violations.append({
+                failed.append({
                     "id": error_type,
                     "description": error_data.get("description", ""),
                     "impact": "serious",  # WAVE errors are typically serious
                     "help": error_data.get("help", ""),
-                    "nodes": [{"target": []} for _ in range(error_data.get("count", 0))]
+                    "count": error_data.get("count", 0),
+                    "wcag": error_data.get("wcag", []),
+                    "selector": error_data.get("selector", ""),
+                    "type": "error"
                 })
             
-            # Process WAVE alerts as moderate violations
+            # Process WAVE alerts as failed issues (but lower severity)
             alerts = wave_result.get("categories", {}).get("alert", {}).get("items", {})
             for alert_type, alert_data in alerts.items():
-                violations.append({
+                failed.append({
                     "id": alert_type,
                     "description": alert_data.get("description", ""),
                     "impact": "moderate",
                     "help": alert_data.get("help", ""),
-                    "nodes": [{"target": []} for _ in range(alert_data.get("count", 0))]
+                    "count": alert_data.get("count", 0),
+                    "wcag": alert_data.get("wcag", []),
+                    "selector": alert_data.get("selector", ""),
+                    "type": "alert"
                 })
             
-            # Process WAVE features as passes
+            # Process WAVE features as passed tests
             features = wave_result.get("categories", {}).get("feature", {}).get("items", {})
             for feature_type, feature_data in features.items():
-                passes.append({
+                passed.append({
                     "id": feature_type,
                     "description": feature_data.get("description", ""),
-                    "nodes": [{"target": []} for _ in range(feature_data.get("count", 0))]
+                    "help": feature_data.get("help", ""),
+                    "count": feature_data.get("count", 0),
+                    "type": "feature"
+                })
+            
+            # Process WAVE structural elements as passed tests
+            structure = wave_result.get("categories", {}).get("structure", {}).get("items", {})
+            for struct_type, struct_data in structure.items():
+                passed.append({
+                    "id": struct_type,
+                    "description": struct_data.get("description", ""),
+                    "help": struct_data.get("help", ""),
+                    "count": struct_data.get("count", 0),
+                    "type": "structure"
                 })
             
             return {
-                "violations": violations,
-                "passes": passes,
-                "incomplete": [],
-                "inapplicable": []
+                "passed": passed,
+                "failed": failed,
+                "incomplete": incomplete
             }
             
         except Exception as e:
             logging.error(f"WAVE results formatting failed: {e}")
-            return {"violations": [], "passes": [], "incomplete": [], "inapplicable": []}
+            return {"passed": [], "failed": [], "incomplete": []}
     
     @staticmethod
     def calculate_equalweb_score(equalweb_result: Dict[str, Any]) -> int:
