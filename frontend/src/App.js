@@ -572,6 +572,7 @@ const ScanPage = () => {
   const [messageType, setMessageType] = useState(""); // "success" or "error"
   const [apiStatus, setApiStatus] = useState({});
   const navigate = useNavigate();
+  const userId = UserManager.getUserId();
 
   useEffect(() => {
     // Fetch external API status on component mount
@@ -597,7 +598,8 @@ const ScanPage = () => {
     try {
       const response = await axios.post(`${API}/scans`, {
         url: url.trim(),
-        tool: tool
+        tool: tool,
+        user_id: userId
       });
 
       setMessage("Scan started successfully! Redirecting to results page...");
