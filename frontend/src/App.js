@@ -435,9 +435,9 @@ const ScanResultsPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
               <div className="text-3xl font-bold text-red-600 mb-2">
-                {scan.issues?.violations ? scan.issues.violations.length : 0}
+                {scan.issues?.failed ? scan.issues.failed.length : 0}
               </div>
-              <div className="text-red-700 font-medium">Violations</div>
+              <div className="text-red-700 font-medium">Failed Tests</div>
               <div className="text-sm text-red-600 mt-1">Issues that need fixing</div>
             </div>
             <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
