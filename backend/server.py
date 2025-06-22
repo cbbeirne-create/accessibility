@@ -454,41 +454,61 @@ class ExternalAPIScanner:
     
     @staticmethod
     def format_accessibe_issues(accessibe_result: Dict[str, Any]) -> Dict[str, Any]:
-        """Format AccessiBe API results to our standard format"""
+        """Format AccessiBe API results to standardized issues format"""
         try:
-            violations = []
-            passes = []
+            passed = []
+            failed = []
+            incomplete = []
             
-            # Process AccessiBe violations
+            # Process AccessiBe violations as failed issues
             violations_data = accessibe_result.get("violations", [])
             for violation in violations_data:
-                violations.append({
+                failed.append({
                     "id": violation.get("id", "unknown"),
                     "description": violation.get("message", ""),
                     "impact": violation.get("impact", "moderate").lower(),
                     "help": violation.get("help", ""),
-                    "nodes": [{"target": []} for _ in range(violation.get("count", 1))]
+                    "count": violation.get("count", 1),
+                    "wcag": violation.get("wcag_criteria", []),
+                    "selector": violation.get("selector", ""),
+                    "element": violation.get("element", ""),
+                    "recommendation": violation.get("fix_suggestion", ""),
+                    "type": "violation"
                 })
             
             # Process passed tests
             passes_data = accessibe_result.get("passes", [])
-            for passed in passes_data:
-                passes.append({
-                    "id": passed.get("id", "unknown"),
-                    "description": passed.get("message", ""),
-                    "nodes": []
+            for passed_test in passes_data:
+                passed.append({
+                    "id": passed_test.get("id", "unknown"),
+                    "description": passed_test.get("message", ""),
+                    "help": passed_test.get("help", ""),
+                    "count": passed_test.get("count", 1),
+                    "wcag": passed_test.get("wcag_criteria", []),
+                    "type": "passed_test"
+                })
+            
+            # Process incomplete/requires review
+            incomplete_data = accessibe_result.get("incomplete", [])
+            for incomplete_test in incomplete_data:
+                incomplete.append({
+                    "id": incomplete_test.get("id", "unknown"),
+                    "description": incomplete_test.get("message", ""),
+                    "help": incomplete_test.get("help", ""),
+                    "reason": incomplete_test.get("reason", "Manual review required"),
+                    "wcag": incomplete_test.get("wcag_criteria", []),
+                    "type": "incomplete_test"
                 })
             
             return {
-                "violations": violations,
-                "passes": passes,
-                "incomplete": [],
-                "inapplicable": []
+                "passed": passed,
+                "failed": failed,
+                "incomplete": incomplete
             }
             
         except Exception as e:
             logging.error(f"AccessiBe results formatting failed: {e}")
-            return {"violations": [], "passes": [], "incomplete": [], "inapplicable": []}
+            return {"passed": [], "failed": [], "incomplete": []}
 
 
 # Server Action: Run Scan with External API
