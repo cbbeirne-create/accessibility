@@ -814,6 +814,57 @@ async def delete_scan_request(scan_id: str):
         raise HTTPException(status_code=500, detail="Failed to delete scan request")
 
 
+@api_router.post("/scans/{scan_id}/run-external")
+async def run_external_api_scan(scan_id: str):
+    """Manually trigger external API scan for a specific scan request"""
+    try:
+        # Check if scan exists
+        scan_request = await db.scan_requests.find_one({"id": scan_id})
+        if not scan_request:
+            raise HTTPException(status_code=404, detail="Scan request not found")
+        
+        # Run the external API scan
+        result = await runScanWithExternalApi(scan_id)
+        
+        if result["success"]:
+            return {
+                "message": "External API scan completed successfully",
+                "scan_id": scan_id,
+                "score": result.get("score"),
+                "tool": result.get("tool")
+            }
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"External API scan failed: {result.get('error', 'Unknown error')}"
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error running external API scan for {scan_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to run external API scan")
+
+
+@api_router.get("/external-apis/status")
+async def get_external_apis_status():
+    """Get status of external API integrations"""
+    return {
+        "wave": {
+            "configured": bool(os.getenv("WAVE_API_KEY")),
+            "status": "ready" if os.getenv("WAVE_API_KEY") else "api_key_required"
+        },
+        "equalweb": {
+            "configured": bool(os.getenv("EQUALWEB_API_KEY")),
+            "status": "ready" if os.getenv("EQUALWEB_API_KEY") else "api_key_required"
+        },
+        "accessibe": {
+            "configured": bool(os.getenv("ACCESSIBE_API_KEY")),
+            "status": "ready" if os.getenv("ACCESSIBE_API_KEY") else "api_key_required"
+        }
+    }
+
+
 # Include the router in the main app
 app.include_router(api_router)
 
