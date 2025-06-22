@@ -456,11 +456,11 @@ const ScanResultsPage = () => {
             </div>
           </div>
 
-          {/* Violations Table */}
-          {scan.issues?.violations && scan.issues.violations.length > 0 && (
+          {/* Failed Issues Table */}
+          {scan.issues?.failed && scan.issues.failed.length > 0 && (
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
               <div className="bg-red-50 border-b border-red-200 px-8 py-4">
-                <h3 className="text-xl font-bold text-red-800">Accessibility Violations</h3>
+                <h3 className="text-xl font-bold text-red-800">❌ Accessibility Issues</h3>
                 <p className="text-red-600 text-sm mt-1">Issues that need immediate attention</p>
               </div>
               <div className="overflow-x-auto">
@@ -482,43 +482,62 @@ const ScanResultsPage = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {scan.issues.violations.map((violation, index) => (
+                    {scan.issues.failed.map((issue, index) => (
                       <tr key={index} className="hover:bg-gray-50">
                         <td className="px-6 py-4">
                           <div className="max-w-xs">
-                            <div className="font-semibold text-gray-900 mb-1">{violation.id}</div>
-                            <div className="text-sm text-gray-600">{violation.description}</div>
-                            {violation.help && (
-                              <div className="text-sm text-blue-600 mt-1">{violation.help}</div>
+                            <div className="font-semibold text-gray-900 mb-1">{issue.id}</div>
+                            <div className="text-sm text-gray-600">{issue.description}</div>
+                            {issue.help && (
+                              <div className="text-sm text-blue-600 mt-1">{issue.help}</div>
                             )}
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getImpactColor(violation.impact)}`}>
-                            {violation.impact || 'Unknown'}
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getImpactColor(issue.impact)}`}>
+                            {issue.impact || 'Unknown'}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
-                          {formatWcagReference(violation.tags || [])}
+                          {formatWcagReference(issue.wcag || [])}
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-sm text-gray-900">
-                            {violation.nodes ? violation.nodes.length : 0} element(s)
+                            {issue.count || 0} element(s)
                           </div>
-                          {violation.nodes && violation.nodes.length > 0 && (
+                          {issue.elements && issue.elements.length > 0 && (
                             <details className="mt-2">
                               <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
                                 View elements
                               </summary>
                               <div className="mt-2 max-h-32 overflow-y-auto">
-                                {violation.nodes.slice(0, 3).map((node, nodeIndex) => (
-                                  <div key={nodeIndex} className="text-xs text-gray-500 mb-1 font-mono">
-                                    {node.target ? node.target.join(', ') : 'N/A'}
+                                {issue.elements.slice(0, 3).map((element, elemIndex) => (
+                                  <div key={elemIndex} className="text-xs text-gray-500 mb-1 font-mono">
+                                    {element.target ? element.target.join(', ') : 'N/A'}
                                   </div>
                                 ))}
-                                {violation.nodes.length > 3 && (
+                                {issue.elements.length > 3 && (
                                   <div className="text-xs text-gray-400">
-                                    ... and {violation.nodes.length - 3} more
+                                    ... and {issue.elements.length - 3} more
+                                  </div>
+                                )}
+                              </div>
+                            </details>
+                          )}
+                          {issue.selectors && issue.selectors.length > 0 && (
+                            <details className="mt-2">
+                              <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
+                                View selectors
+                              </summary>
+                              <div className="mt-2 max-h-32 overflow-y-auto">
+                                {issue.selectors.slice(0, 3).map((selector, selIndex) => (
+                                  <div key={selIndex} className="text-xs text-gray-500 mb-1 font-mono">
+                                    {Array.isArray(selector) ? selector.join(', ') : selector}
+                                  </div>
+                                ))}
+                                {issue.selectors.length > 3 && (
+                                  <div className="text-xs text-gray-400">
+                                    ... and {issue.selectors.length - 3} more
                                   </div>
                                 )}
                               </div>
@@ -533,11 +552,119 @@ const ScanResultsPage = () => {
             </div>
           )}
 
-          {/* No Violations Message */}
-          {scan.issues?.violations && scan.issues.violations.length === 0 && (
+          {/* Passed Tests Collapsible Section */}
+          {scan.issues?.passed && scan.issues.passed.length > 0 && (
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <details className="group">
+                <summary className="cursor-pointer bg-green-50 border-b border-green-200 px-8 py-4 hover:bg-green-100 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold text-green-800">✅ Passed Tests ({scan.issues.passed.length})</h3>
+                      <p className="text-green-600 text-sm mt-1">Tests that passed accessibility requirements</p>
+                    </div>
+                    <div className="transform group-open:rotate-180 transition-transform duration-200">
+                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                </summary>
+                <div className="px-8 py-6 bg-green-25">
+                  <div className="grid gap-4">
+                    {scan.issues.passed.map((test, index) => (
+                      <div key={index} className="border border-green-200 rounded-lg p-4 bg-green-50">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-green-800 mb-2">{test.id}</h4>
+                            <p className="text-sm text-green-700 mb-2">{test.description}</p>
+                            {test.help && (
+                              <p className="text-xs text-green-600 mb-2">{test.help}</p>
+                            )}
+                            <div className="flex items-center space-x-4 text-xs text-green-600">
+                              {test.wcag && test.wcag.length > 0 && (
+                                <span className="bg-green-100 px-2 py-1 rounded">
+                                  WCAG: {formatWcagReference(test.wcag)}
+                                </span>
+                              )}
+                              {test.count && (
+                                <span className="bg-green-100 px-2 py-1 rounded">
+                                  Elements: {test.count}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </details>
+            </div>
+          )}
+
+          {/* Incomplete Tests Collapsible Section */}
+          {scan.issues?.incomplete && scan.issues.incomplete.length > 0 && (
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <details className="group">
+                <summary className="cursor-pointer bg-yellow-50 border-b border-yellow-200 px-8 py-4 hover:bg-yellow-100 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold text-yellow-800">⚠️ Incomplete Tests ({scan.issues.incomplete.length})</h3>
+                      <p className="text-yellow-600 text-sm mt-1">Manual review needed - requires human verification</p>
+                    </div>
+                    <div className="transform group-open:rotate-180 transition-transform duration-200">
+                      <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                </summary>
+                <div className="px-8 py-6 bg-yellow-25">
+                  <div className="grid gap-4">
+                    {scan.issues.incomplete.map((test, index) => (
+                      <div key={index} className="border border-yellow-200 rounded-lg p-4 bg-yellow-50">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-yellow-800 mb-2">{test.id}</h4>
+                            <p className="text-sm text-yellow-700 mb-2">{test.description}</p>
+                            {test.help && (
+                              <p className="text-xs text-yellow-600 mb-2">{test.help}</p>
+                            )}
+                            <div className="bg-yellow-100 border border-yellow-300 rounded p-2 mb-3">
+                              <p className="text-xs text-yellow-800 font-medium">
+                                📝 Manual Review Required
+                              </p>
+                              <p className="text-xs text-yellow-700 mt-1">
+                                {test.reason || "Requires human verification - automated testing cannot determine if this passes or fails"}
+                              </p>
+                            </div>
+                            <div className="flex items-center space-x-4 text-xs text-yellow-600">
+                              {test.wcag && test.wcag.length > 0 && (
+                                <span className="bg-yellow-100 px-2 py-1 rounded">
+                                  WCAG: {formatWcagReference(test.wcag)}
+                                </span>
+                              )}
+                              {test.count && (
+                                <span className="bg-yellow-100 px-2 py-1 rounded">
+                                  Elements: {test.count}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </details>
+            </div>
+          )}
+
+          {/* No Failed Issues Message */}
+          {scan.issues?.failed && scan.issues.failed.length === 0 && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-8 text-center">
               <div className="text-green-500 text-4xl mb-4">✅</div>
-              <h3 className="text-xl font-bold text-green-800 mb-2">No Accessibility Violations Found!</h3>
+              <h3 className="text-xl font-bold text-green-800 mb-2">No Accessibility Issues Found!</h3>
               <p className="text-green-600">This website meets all tested accessibility standards.</p>
             </div>
           )}
