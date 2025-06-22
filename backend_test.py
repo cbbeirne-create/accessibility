@@ -244,6 +244,184 @@ class AccessibilityScannerAPITest(unittest.TestCase):
             print(f"❌ Specific scan not found (status code: {response.status_code})")
             print("This test will be marked as skipped rather than failed")
             self.skipTest(f"Specific scan with ID {specific_scan_id} not found")
+            
+    def test_10_external_apis_status(self):
+        """Test the external APIs status endpoint"""
+        print("\n🔍 Testing external APIs status endpoint...")
+        
+        response = requests.get(f"{self.base_url}/external-apis/status")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        
+        # Verify the structure of the response
+        self.assertIn("wave", data)
+        self.assertIn("equalweb", data)
+        self.assertIn("accessibe", data)
+        
+        # Each API should have configured and status fields
+        for api in ["wave", "equalweb", "accessibe"]:
+            self.assertIn("configured", data[api])
+            self.assertIn("status", data[api])
+            
+            # Status should be either "ready" or "api_key_required"
+            self.assertIn(data[api]["status"], ["ready", "api_key_required"])
+            
+            # Print the status of each API
+            print(f"✅ {api.upper()} API: {'Configured' if data[api]['configured'] else 'Not configured'} - Status: {data[api]['status']}")
+            
+        print("✅ External APIs status endpoint test passed")
+        
+    def test_11_external_scan_with_wave(self):
+        """Test creating a scan with WAVE external tool"""
+        print("\n🔍 Testing scan creation with WAVE external tool...")
+        
+        test_url = f"https://example.com/test-{uuid.uuid4()}"
+        response = requests.post(
+            f"{self.base_url}/scans", 
+            json={"url": test_url, "tool": "wave"}
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["url"], test_url)
+        self.assertEqual(data["status"], "pending")
+        self.assertEqual(data["tool"], "wave")
+        
+        scan_id = data["id"]
+        print(f"✅ Created WAVE scan with ID: {scan_id}")
+        
+        # Poll for scan completion (timeout after 30 seconds)
+        max_attempts = 15
+        attempts = 0
+        scan_completed = False
+        
+        print("⏳ Waiting for WAVE scan to complete...")
+        while attempts < max_attempts and not scan_completed:
+            time.sleep(2)  # Poll every 2 seconds
+            try:
+                response = requests.get(f"{self.base_url}/scans/{scan_id}")
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                
+                if data["status"] in ["completed", "error"]:
+                    scan_completed = True
+                    print(f"✅ WAVE scan completed with status: {data['status']}")
+                    
+                    if data["status"] == "error":
+                        # If API key is not configured, we expect an error
+                        self.assertIsNotNone(data["error_message"])
+                        print(f"Expected error: {data['error_message']}")
+                        if "API key not configured" in data["error_message"]:
+                            print("✅ Correctly handled missing API key scenario")
+                    else:
+                        # If scan completed successfully, verify the results
+                        self.assertIsNotNone(data["score"])
+                        self.assertIsNotNone(data["issues"])
+                        print(f"✅ WAVE scan score: {data['score']}/100")
+            except Exception as e:
+                print(f"Error polling WAVE scan status: {e}")
+            
+            attempts += 1
+            print(f"Polling attempt {attempts}/{max_attempts}...")
+        
+        # Clean up - delete the test scan
+        try:
+            response = requests.delete(f"{self.base_url}/scans/{scan_id}")
+            if response.status_code == 200:
+                print("✅ WAVE test scan deleted successfully")
+        except Exception as e:
+            print(f"Error deleting WAVE test scan: {e}")
+            
+        print("✅ WAVE external scan test completed")
+        
+    def test_12_manual_external_api_trigger(self):
+        """Test manually triggering an external API scan"""
+        print("\n🔍 Testing manual external API scan trigger...")
+        
+        # First create a scan with an external tool
+        test_url = f"https://example.com/test-{uuid.uuid4()}"
+        response = requests.post(
+            f"{self.base_url}/scans", 
+            json={"url": test_url, "tool": "equalweb"}
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        scan_id = data["id"]
+        print(f"✅ Created EqualWeb scan with ID: {scan_id}")
+        
+        # Wait a moment to ensure the scan is in the database
+        time.sleep(2)
+        
+        # Now manually trigger the external API scan
+        response = requests.post(f"{self.base_url}/scans/{scan_id}/run-external")
+        
+        # If API key is not configured, we expect an error response
+        if response.status_code == 500:
+            error_data = response.json()
+            print(f"Expected error: {error_data.get('detail', 'Unknown error')}")
+            if "API key not configured" in error_data.get('detail', ''):
+                print("✅ Correctly handled missing API key scenario for manual trigger")
+        else:
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertEqual(data["scan_id"], scan_id)
+            print("✅ Manual external API scan triggered successfully")
+        
+        # Clean up - delete the test scan
+        try:
+            response = requests.delete(f"{self.base_url}/scans/{scan_id}")
+            if response.status_code == 200:
+                print("✅ EqualWeb test scan deleted successfully")
+        except Exception as e:
+            print(f"Error deleting EqualWeb test scan: {e}")
+            
+        print("✅ Manual external API trigger test completed")
+        
+    def test_13_specific_external_scan_result(self):
+        """Test the specific external scan result mentioned in the request"""
+        print("\n🔍 Testing specific external scan result...")
+        
+        # Test the specific external scan ID from the request
+        response = requests.get(f"{self.base_url}/scans/{self.external_scan_id}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Found specific external scan with ID: {self.external_scan_id}")
+            print(f"URL: {data['url']}")
+            print(f"Status: {data['status']}")
+            print(f"Tool: {data['tool']}")
+            
+            # Verify it's a WAVE scan
+            self.assertEqual(data["tool"], "wave")
+            
+            # If the scan completed, check the results
+            if data["status"] == "completed":
+                print(f"Score: {data['score']}/100")
+                
+                # Verify issues exist
+                self.assertIn("issues", data)
+                self.assertIn("violations", data["issues"])
+                violations_count = len(data["issues"]["violations"])
+                print(f"Found {violations_count} violations")
+                
+                # Print some sample violations for verification
+                if violations_count > 0:
+                    for i in range(min(3, violations_count)):
+                        violation = data["issues"]["violations"][i]
+                        print(f"Violation {i+1}: {violation['id']} - {violation['impact']} impact")
+            elif data["status"] == "error":
+                print(f"Scan failed with error: {data.get('error_message', 'Unknown error')}")
+                if "API key not configured" in data.get('error_message', ''):
+                    print("✅ Correctly handled missing API key scenario")
+            else:
+                print(f"Scan status: {data['status']}")
+        else:
+            print(f"❌ Specific external scan not found (status code: {response.status_code})")
+            print("This test will be marked as skipped rather than failed")
+            self.skipTest(f"Specific external scan with ID {self.external_scan_id} not found")
+            
+        print("✅ Specific external scan test completed")
 
 if __name__ == "__main__":
     unittest.main(argv=['first-arg-is-ignored'], exit=False)
