@@ -379,41 +379,62 @@ class ExternalAPIScanner:
     
     @staticmethod
     def format_equalweb_issues(equalweb_result: Dict[str, Any]) -> Dict[str, Any]:
-        """Format EqualWeb API results to our standard format"""
+        """Format EqualWeb API results to standardized issues format"""
         try:
-            violations = []
-            passes = []
+            passed = []
+            failed = []
+            incomplete = []
             
-            # Process EqualWeb violations
+            # Process EqualWeb violations as failed issues
             issues = equalweb_result.get("issues", [])
             for issue in issues:
-                violations.append({
+                severity = issue.get("severity", "moderate").lower()
+                failed.append({
                     "id": issue.get("rule_id", "unknown"),
                     "description": issue.get("description", ""),
-                    "impact": issue.get("severity", "moderate").lower(),
+                    "impact": severity,
                     "help": issue.get("help_text", ""),
-                    "nodes": [{"target": []} for _ in range(issue.get("instances", 1))]
+                    "count": issue.get("instances", 1),
+                    "wcag": issue.get("wcag_references", []),
+                    "selector": issue.get("selector", ""),
+                    "xpath": issue.get("xpath", ""),
+                    "recommendation": issue.get("recommendation", ""),
+                    "type": "violation"
                 })
             
             # Process passed checks
             passed_checks = equalweb_result.get("passed_checks", [])
             for check in passed_checks:
-                passes.append({
+                passed.append({
                     "id": check.get("rule_id", "unknown"),
                     "description": check.get("description", ""),
-                    "nodes": []
+                    "help": check.get("help_text", ""),
+                    "count": check.get("instances", 1),
+                    "wcag": check.get("wcag_references", []),
+                    "type": "passed_check"
+                })
+            
+            # Process incomplete/manual checks
+            manual_checks = equalweb_result.get("manual_checks", [])
+            for check in manual_checks:
+                incomplete.append({
+                    "id": check.get("rule_id", "unknown"),
+                    "description": check.get("description", ""),
+                    "help": check.get("help_text", ""),
+                    "reason": check.get("manual_reason", "Requires manual verification"),
+                    "wcag": check.get("wcag_references", []),
+                    "type": "manual_check"
                 })
             
             return {
-                "violations": violations,
-                "passes": passes,
-                "incomplete": [],
-                "inapplicable": []
+                "passed": passed,
+                "failed": failed,
+                "incomplete": incomplete
             }
             
         except Exception as e:
             logging.error(f"EqualWeb results formatting failed: {e}")
-            return {"violations": [], "passes": [], "incomplete": [], "inapplicable": []}
+            return {"passed": [], "failed": [], "incomplete": []}
     
     @staticmethod
     def calculate_accessibe_score(accessibe_result: Dict[str, Any]) -> int:
