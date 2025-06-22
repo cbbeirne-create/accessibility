@@ -966,6 +966,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/scan" element={<ScanPage />} />
+          <Route path="/my-scans" element={<MyScansPage />} />
           <Route path="/scan-results/:id" element={<ScanResultsPage />} />
         </Routes>
       </BrowserRouter>
