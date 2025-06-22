@@ -3,6 +3,7 @@ import unittest
 import uuid
 import time
 from datetime import datetime
+import json
 
 class AccessibilityScannerAPITest(unittest.TestCase):
     def setUp(self):
