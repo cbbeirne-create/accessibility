@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -10,6 +10,17 @@ from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime
 from enum import Enum
+import asyncio
+import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
+from axe_selenium_python import Axe
+import json
 
 
 ROOT_DIR = Path(__file__).parent
@@ -30,8 +41,15 @@ api_router = APIRouter(prefix="/api")
 # Define Enums and Models
 class ScanStatus(str, Enum):
     pending = "pending"
-    completed = "completed"
+    completed = "completed" 
     error = "error"
+
+
+class ScanTool(str, Enum):
+    axe_core = "axe-core"
+    wave = "wave"
+    equalweb = "equalweb"
+    accessibe = "accessibe"
 
 
 class ScanRequest(BaseModel):
@@ -40,17 +58,201 @@ class ScanRequest(BaseModel):
     status: ScanStatus = Field(default=ScanStatus.pending)
     score: Optional[int] = Field(default=None, ge=0, le=100)
     issues: Optional[Dict[str, Any]] = Field(default=None)
+    tool: Optional[ScanTool] = Field(default=ScanTool.axe_core)
     createdAt: datetime = Field(default_factory=datetime.utcnow)
+    error_message: Optional[str] = Field(default=None)
 
 
 class ScanRequestCreate(BaseModel):
     url: HttpUrl
+    tool: Optional[ScanTool] = Field(default=ScanTool.axe_core)
 
 
 class ScanRequestUpdate(BaseModel):
     status: Optional[ScanStatus] = None
     score: Optional[int] = Field(default=None, ge=0, le=100)
     issues: Optional[Dict[str, Any]] = None
+    error_message: Optional[str] = None
+
+
+# Accessibility Scanning Service
+class AccessibilityScanner:
+    
+    @staticmethod
+    def setup_chrome_driver():
+        """Set up Chrome driver with headless options"""
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-extensions")
+        chrome_options.add_argument("--disable-logging")
+        chrome_options.add_argument("--disable-web-security")
+        chrome_options.add_argument("--allow-running-insecure-content")
+        chrome_options.add_argument("--ignore-certificate-errors")
+        
+        try:
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+            return driver
+        except Exception as e:
+            logging.error(f"Failed to setup Chrome driver: {e}")
+            raise Exception(f"Chrome driver setup failed: {e}")
+    
+    @staticmethod
+    async def scan_with_axe(url: str) -> Dict[str, Any]:
+        """Scan website using axe-core"""
+        driver = None
+        try:
+            # Set up Chrome driver
+            driver = AccessibilityScanner.setup_chrome_driver()
+            
+            # Navigate to the URL
+            driver.get(str(url))
+            
+            # Wait for page to load
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+            
+            # Inject axe-core and run scan
+            axe = Axe(driver)
+            axe.inject()
+            results = axe.run()
+            
+            # Calculate score based on violations
+            score = AccessibilityScanner.calculate_axe_score(results)
+            
+            return {
+                "success": True,
+                "score": score,
+                "results": results,
+                "tool": "axe-core"
+            }
+            
+        except Exception as e:
+            logging.error(f"axe-core scan failed for {url}: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "tool": "axe-core"
+            }
+        finally:
+            if driver:
+                driver.quit()
+    
+    @staticmethod
+    def calculate_axe_score(axe_results: Dict[str, Any]) -> int:
+        """Calculate accessibility score from axe results"""
+        try:
+            violations = axe_results.get("violations", [])
+            passes = axe_results.get("passes", [])
+            
+            # Weight violations by impact
+            impact_weights = {"critical": 10, "serious": 5, "moderate": 3, "minor": 1}
+            violation_score = 0
+            
+            for violation in violations:
+                impact = violation.get("impact", "minor")
+                node_count = len(violation.get("nodes", []))
+                violation_score += impact_weights.get(impact, 1) * node_count
+            
+            # Base score calculation
+            total_rules = len(violations) + len(passes)
+            if total_rules == 0:
+                return 85  # Default score if no rules tested
+            
+            # Score = 100 - (weighted violations penalty)
+            penalty = min(violation_score * 2, 85)  # Cap penalty at 85 points
+            score = max(100 - penalty, 15)  # Minimum score of 15
+            
+            return int(score)
+        except Exception as e:
+            logging.error(f"Score calculation failed: {e}")
+            return 50  # Default score on error
+    
+    @staticmethod
+    async def scan_with_wave(url: str, api_key: str) -> Dict[str, Any]:
+        """Scan website using WAVE API (placeholder for future implementation)"""
+        # TODO: Implement WAVE API integration
+        return {
+            "success": False,
+            "error": "WAVE API integration not yet implemented",
+            "tool": "wave"
+        }
+    
+    @staticmethod
+    async def scan_with_equalweb(url: str, api_key: str) -> Dict[str, Any]:
+        """Scan website using EqualWeb API (placeholder for future implementation)"""
+        # TODO: Implement EqualWeb API integration
+        return {
+            "success": False,
+            "error": "EqualWeb API integration not yet implemented",
+            "tool": "equalweb"
+        }
+    
+    @staticmethod
+    async def scan_with_accessibe(url: str, api_key: str) -> Dict[str, Any]:
+        """Scan website using AccessiBe API (placeholder for future implementation)"""
+        # TODO: Implement AccessiBe API integration
+        return {
+            "success": False,
+            "error": "AccessiBe API integration not yet implemented", 
+            "tool": "accessibe"
+        }
+
+
+async def perform_accessibility_scan(scan_id: str, url: str, tool: ScanTool):
+    """Background task to perform accessibility scan"""
+    try:
+        logging.info(f"Starting accessibility scan for {url} using {tool}")
+        
+        # Perform the scan based on tool selection
+        if tool == ScanTool.axe_core:
+            result = await AccessibilityScanner.scan_with_axe(url)
+        elif tool == ScanTool.wave:
+            api_key = os.getenv("WAVE_API_KEY")
+            result = await AccessibilityScanner.scan_with_wave(url, api_key)
+        elif tool == ScanTool.equalweb:
+            api_key = os.getenv("EQUALWEB_API_KEY")
+            result = await AccessibilityScanner.scan_with_equalweb(url, api_key)
+        elif tool == ScanTool.accessibe:
+            api_key = os.getenv("ACCESSIBE_API_KEY")
+            result = await AccessibilityScanner.scan_with_accessibe(url, api_key)
+        else:
+            result = {"success": False, "error": f"Unknown scan tool: {tool}"}
+        
+        # Update scan request in database
+        if result["success"]:
+            await db.scan_requests.update_one(
+                {"id": scan_id},
+                {"$set": {
+                    "status": ScanStatus.completed,
+                    "score": result["score"],
+                    "issues": result["results"]
+                }}
+            )
+            logging.info(f"Scan completed successfully for {url}")
+        else:
+            await db.scan_requests.update_one(
+                {"id": scan_id},
+                {"$set": {
+                    "status": ScanStatus.error,
+                    "error_message": result["error"]
+                }}
+            )
+            logging.error(f"Scan failed for {url}: {result['error']}")
+    
+    except Exception as e:
+        logging.error(f"Scan task failed for {scan_id}: {e}")
+        await db.scan_requests.update_one(
+            {"id": scan_id},
+            {"$set": {
+                "status": ScanStatus.error,
+                "error_message": str(e)
+            }}
+        )
 
 
 # API Routes
@@ -60,8 +262,8 @@ async def root():
 
 
 @api_router.post("/scans", response_model=ScanRequest)
-async def create_scan_request(input: ScanRequestCreate):
-    """Create a new accessibility scan request"""
+async def create_scan_request(input: ScanRequestCreate, background_tasks: BackgroundTasks):
+    """Create a new accessibility scan request and start scanning"""
     try:
         scan_dict = input.dict()
         scan_dict['url'] = str(scan_dict['url'])  # Convert HttpUrl to string for MongoDB
@@ -70,6 +272,15 @@ async def create_scan_request(input: ScanRequestCreate):
         scan_data['url'] = str(scan_data['url'])  # Ensure URL is string
         
         await db.scan_requests.insert_one(scan_data)
+        
+        # Start background scanning task
+        background_tasks.add_task(
+            perform_accessibility_scan,
+            scan_obj.id,
+            str(input.url),
+            input.tool
+        )
+        
         return scan_obj
     except Exception as e:
         logging.error(f"Error creating scan request: {e}")
@@ -119,6 +330,8 @@ async def update_scan_request(scan_id: str, update_data: ScanRequestUpdate):
             update_dict["score"] = update_data.score
         if update_data.issues is not None:
             update_dict["issues"] = update_data.issues
+        if update_data.error_message is not None:
+            update_dict["error_message"] = update_data.error_message
             
         if update_dict:
             await db.scan_requests.update_one(
