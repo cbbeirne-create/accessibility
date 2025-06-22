@@ -14,6 +14,9 @@ class AccessibilityScannerAPITest(unittest.TestCase):
         self.wave_scan_id = "382e9c35-8ed3-43e0-92e3-ebdfc81f537e"
         self.equalweb_scan_id = "7f9ff9d2-fe90-4641-a145-adf3dc359d75"
         self.axe_scan_id = "e8069af6-885d-402c-af45-942cc75e022e"
+        # Test user IDs
+        self.test_user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        self.test_user_id2 = f"test_user_{uuid.uuid4().hex[:8]}"
         
     def test_01_health_check(self):
         """Test the API health check endpoint"""
