@@ -97,6 +97,28 @@ const UserManager = {
   }
 };
 
+// Helper function to get remediation guidance for WCAG codes
+const getRemediationGuidance = (issue) => {
+  if (!issue.wcag || !Array.isArray(issue.wcag)) {
+    return null;
+  }
+  
+  // Try to find remediation guidance by checking various WCAG references
+  for (const wcagRef of issue.wcag) {
+    const guidance = WCAG_REMEDIATION[wcagRef];
+    if (guidance) {
+      return guidance;
+    }
+  }
+  
+  // Also check the issue ID itself (for axe-core rules)
+  if (issue.id && WCAG_REMEDIATION[issue.id]) {
+    return WCAG_REMEDIATION[issue.id];
+  }
+  
+  return null;
+};
+
 // Navigation Component
 const Navigation = () => {
   const userId = UserManager.getUserId();
