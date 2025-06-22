@@ -62,11 +62,13 @@ class ScanRequest(BaseModel):
     tool: Optional[ScanTool] = Field(default=ScanTool.axe_core)
     createdAt: datetime = Field(default_factory=datetime.utcnow)
     error_message: Optional[str] = Field(default=None)
+    user_id: Optional[str] = Field(default=None)  # User identifier for tracking scans
 
 
 class ScanRequestCreate(BaseModel):
     url: HttpUrl
     tool: Optional[ScanTool] = Field(default=ScanTool.axe_core)
+    user_id: Optional[str] = Field(default=None)  # Optional user identifier
 
 
 class ScanRequestUpdate(BaseModel):
