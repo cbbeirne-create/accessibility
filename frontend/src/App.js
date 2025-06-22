@@ -325,10 +325,26 @@ const ScanResultsPage = () => {
 // Scan Page Component
 const ScanPage = () => {
   const [url, setUrl] = useState("");
+  const [tool, setTool] = useState("axe-core");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState(""); // "success" or "error"
+  const [apiStatus, setApiStatus] = useState({});
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Fetch external API status on component mount
+    fetchApiStatus();
+  }, []);
+
+  const fetchApiStatus = async () => {
+    try {
+      const response = await axios.get(`${API}/external-apis/status`);
+      setApiStatus(response.data);
+    } catch (error) {
+      console.error("Error fetching API status:", error);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -340,7 +356,7 @@ const ScanPage = () => {
     try {
       const response = await axios.post(`${API}/scans`, {
         url: url.trim(),
-        tool: "axe-core"
+        tool: tool
       });
 
       setMessage("Scan started successfully! Redirecting to results page...");
@@ -361,15 +377,38 @@ const ScanPage = () => {
     }
   };
 
+  const getToolDescription = (toolName) => {
+    switch (toolName) {
+      case "axe-core":
+        return "Free, comprehensive accessibility testing using headless browser automation";
+      case "wave":
+        return "WebAIM's WAVE API for detailed accessibility evaluation";
+      case "equalweb":
+        return "EqualWeb's professional accessibility compliance scanning";
+      case "accessibe":
+        return "AccessiBe's accessibility analysis and compliance checking";
+      default:
+        return "";
+    }
+  };
+
+  const getToolStatus = (toolName) => {
+    if (toolName === "axe-core") return { available: true, status: "ready" };
+    return {
+      available: apiStatus[toolName]?.configured || false,
+      status: apiStatus[toolName]?.status || "unknown"
+    };
+  };
+
   return (
     <div className="container mx-auto px-4 max-w-4xl">
       <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
         <h2 className="text-3xl font-bold text-gray-800 mb-6">Run Accessibility Scan</h2>
         <p className="text-gray-600 mb-6">
-          Enter a website URL below to analyze its accessibility compliance using axe-core.
+          Enter a website URL and select your preferred accessibility scanning tool.
         </p>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label htmlFor="url" className="block text-sm font-medium text-gray-700 mb-2">
               Website URL
@@ -385,6 +424,68 @@ const ScanPage = () => {
               disabled={loading}
             />
           </div>
+
+          <div>
+            <label htmlFor="tool" className="block text-sm font-medium text-gray-700 mb-3">
+              Scanning Tool
+            </label>
+            <div className="space-y-3">
+              {["axe-core", "wave", "equalweb", "accessibe"].map((toolOption) => {
+                const toolStatus = getToolStatus(toolOption);
+                const isDisabled = !toolStatus.available && toolOption !== "axe-core";
+                
+                return (
+                  <div key={toolOption} className="flex items-start space-x-3">
+                    <input
+                      type="radio"
+                      id={toolOption}
+                      name="tool"
+                      value={toolOption}
+                      checked={tool === toolOption}
+                      onChange={(e) => setTool(e.target.value)}
+                      disabled={loading || isDisabled}
+                      className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <label htmlFor={toolOption} className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className={`font-medium ${isDisabled ? 'text-gray-400' : 'text-gray-900'}`}>
+                              {toolOption === "axe-core" ? "axe-core" : toolOption.toUpperCase()}
+                            </span>
+                            {toolOption === "axe-core" && (
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                Free
+                              </span>
+                            )}
+                            {toolStatus.status === "ready" && toolOption !== "axe-core" && (
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                Ready
+                              </span>
+                            )}
+                            {toolStatus.status === "api_key_required" && (
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                API Key Required
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-sm mt-1 ${isDisabled ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {getToolDescription(toolOption)}
+                          </p>
+                          {isDisabled && (
+                            <p className="text-xs text-red-600 mt-1">
+                              Configure API key in backend environment to enable this tool
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <button
             type="submit"
             disabled={loading || !url.trim()}
@@ -403,6 +504,25 @@ const ScanPage = () => {
             {message}
           </div>
         )}
+
+        {/* Tool Information Panel */}
+        <div className="mt-8 bg-gray-50 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">About Accessibility Scanning Tools</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-lg p-4 border">
+              <h4 className="font-semibold text-gray-800 mb-2">axe-core (Recommended)</h4>
+              <p className="text-sm text-gray-600">
+                Free, open-source accessibility testing engine. Provides comprehensive WCAG compliance checking with detailed violation reports.
+              </p>
+            </div>
+            <div className="bg-white rounded-lg p-4 border">
+              <h4 className="font-semibold text-gray-800 mb-2">External APIs</h4>
+              <p className="text-sm text-gray-600">
+                Professional accessibility scanning services like WAVE, EqualWeb, and AccessiBe offer additional features and compliance reporting.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
