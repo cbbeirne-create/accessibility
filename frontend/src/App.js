@@ -931,9 +931,9 @@ const Dashboard = () => {
                     </div>
                     <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
                       <div className="text-lg font-bold text-red-600">
-                        {scan.issues.violations ? scan.issues.violations.length : 0}
+                        {scan.issues.failed ? scan.issues.failed.length : 0}
                       </div>
-                      <div className="text-xs text-red-700">Violations</div>
+                      <div className="text-xs text-red-700">Failed</div>
                     </div>
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
                       <div className="text-lg font-bold text-yellow-600">
