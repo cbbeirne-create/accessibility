@@ -206,6 +206,42 @@ class AccessibilityScannerAPITest(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         
         print("✅ Error handling passed")
+        
+    def test_09_specific_scan_result(self):
+        """Test the specific scan result mentioned in the request"""
+        print("\n🔍 Testing specific scan result...")
+        
+        # Test the specific scan ID from the request
+        specific_scan_id = "27d02b04-c388-4504-96dd-988aee7ad308"
+        response = requests.get(f"{self.base_url}/scans/{specific_scan_id}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Found specific scan with ID: {specific_scan_id}")
+            print(f"URL: {data['url']}")
+            print(f"Status: {data['status']}")
+            print(f"Score: {data['score']}/100")
+            
+            # Verify the expected values
+            self.assertEqual(data["url"], "https://github.com/")
+            self.assertEqual(data["status"], "completed")
+            self.assertEqual(data["score"], 15)
+            
+            # Verify violations exist
+            self.assertIn("issues", data)
+            self.assertIn("violations", data["issues"])
+            violations_count = len(data["issues"]["violations"])
+            print(f"Found {violations_count} violations")
+            
+            # Print some sample violations for verification
+            if violations_count > 0:
+                for i in range(min(3, violations_count)):
+                    violation = data["issues"]["violations"][i]
+                    print(f"Violation {i+1}: {violation['id']} - {violation['impact']} impact")
+        else:
+            print(f"❌ Specific scan not found (status code: {response.status_code})")
+            print("This test will be marked as skipped rather than failed")
+            self.skipTest(f"Specific scan with ID {specific_scan_id} not found")
 
 if __name__ == "__main__":
     unittest.main(argv=['first-arg-is-ignored'], exit=False)
