@@ -21,6 +21,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 from axe_selenium_python import Axe
 import json
+import time
 
 
 ROOT_DIR = Path(__file__).parent
@@ -73,6 +74,473 @@ class ScanRequestUpdate(BaseModel):
     score: Optional[int] = Field(default=None, ge=0, le=100)
     issues: Optional[Dict[str, Any]] = None
     error_message: Optional[str] = None
+
+
+# External API Integration Classes
+class ExternalAPIScanner:
+    
+    @staticmethod
+    async def scan_with_wave_api(url: str) -> Dict[str, Any]:
+        """Scan website using WAVE API"""
+        api_key = os.getenv("WAVE_API_KEY")
+        if not api_key:
+            return {
+                "success": False,
+                "error": "WAVE API key not configured",
+                "tool": "wave"
+            }
+        
+        try:
+            # WAVE API endpoint
+            endpoint = "http://wave.webaim.org/api/request"
+            params = {
+                "key": api_key,
+                "url": url,
+                "format": "json"
+            }
+            
+            response = requests.get(endpoint, params=params, timeout=30)
+            
+            if response.status_code != 200:
+                return {
+                    "success": False,
+                    "error": f"WAVE API returned status {response.status_code}",
+                    "tool": "wave"
+                }
+            
+            result = response.json()
+            
+            # Check for API errors
+            if result.get("status", {}).get("error"):
+                return {
+                    "success": False,
+                    "error": f"WAVE API error: {result['status']}",
+                    "tool": "wave"
+                }
+            
+            # Parse WAVE results to our format
+            score = ExternalAPIScanner.calculate_wave_score(result)
+            issues = ExternalAPIScanner.format_wave_issues(result)
+            
+            return {
+                "success": True,
+                "score": score,
+                "results": issues,
+                "tool": "wave"
+            }
+            
+        except requests.RequestException as e:
+            return {
+                "success": False,
+                "error": f"WAVE API request failed: {str(e)}",
+                "tool": "wave"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"WAVE API processing failed: {str(e)}",
+                "tool": "wave"
+            }
+    
+    @staticmethod
+    async def scan_with_equalweb_api(url: str) -> Dict[str, Any]:
+        """Scan website using EqualWeb API"""
+        api_key = os.getenv("EQUALWEB_API_KEY")
+        if not api_key:
+            return {
+                "success": False,
+                "error": "EqualWeb API key not configured",
+                "tool": "equalweb"
+            }
+        
+        try:
+            # EqualWeb API endpoint (hypothetical - verify with actual documentation)
+            endpoint = "https://api.equalweb.com/scan"
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            data = {
+                "url": url,
+                "report_type": "compliance",
+                "standards": ["wcag2aa"]
+            }
+            
+            response = requests.post(endpoint, headers=headers, json=data, timeout=60)
+            
+            if response.status_code != 200:
+                return {
+                    "success": False,
+                    "error": f"EqualWeb API returned status {response.status_code}",
+                    "tool": "equalweb"
+                }
+            
+            result = response.json()
+            
+            # Parse EqualWeb results to our format
+            score = ExternalAPIScanner.calculate_equalweb_score(result)
+            issues = ExternalAPIScanner.format_equalweb_issues(result)
+            
+            return {
+                "success": True,
+                "score": score,
+                "results": issues,
+                "tool": "equalweb"
+            }
+            
+        except requests.RequestException as e:
+            return {
+                "success": False,
+                "error": f"EqualWeb API request failed: {str(e)}",
+                "tool": "equalweb"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"EqualWeb API processing failed: {str(e)}",
+                "tool": "equalweb"
+            }
+    
+    @staticmethod
+    async def scan_with_accessibe_api(url: str) -> Dict[str, Any]:
+        """Scan website using AccessiBe API"""
+        api_key = os.getenv("ACCESSIBE_API_KEY")
+        if not api_key:
+            return {
+                "success": False,
+                "error": "AccessiBe API key not configured",
+                "tool": "accessibe"
+            }
+        
+        try:
+            # AccessiBe API endpoint (hypothetical - verify with actual documentation)
+            endpoint = "https://api.accessibe.com/access-scan"
+            headers = {
+                "X-API-Key": api_key,
+                "Content-Type": "application/json"
+            }
+            data = {
+                "url": url,
+                "scan_type": "full"
+            }
+            
+            response = requests.post(endpoint, headers=headers, json=data, timeout=60)
+            
+            if response.status_code != 200:
+                return {
+                    "success": False,
+                    "error": f"AccessiBe API returned status {response.status_code}",
+                    "tool": "accessibe"
+                }
+            
+            result = response.json()
+            
+            # Parse AccessiBe results to our format
+            score = ExternalAPIScanner.calculate_accessibe_score(result)
+            issues = ExternalAPIScanner.format_accessibe_issues(result)
+            
+            return {
+                "success": True,
+                "score": score,
+                "results": issues,
+                "tool": "accessibe"
+            }
+            
+        except requests.RequestException as e:
+            return {
+                "success": False,
+                "error": f"AccessiBe API request failed: {str(e)}",
+                "tool": "accessibe"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"AccessiBe API processing failed: {str(e)}",
+                "tool": "accessibe"
+            }
+    
+    @staticmethod
+    def calculate_wave_score(wave_result: Dict[str, Any]) -> int:
+        """Calculate accessibility score from WAVE API results"""
+        try:
+            categories = wave_result.get("categories", {})
+            
+            # WAVE provides error, alert, feature, structure, and aria counts
+            errors = categories.get("error", {}).get("count", 0)
+            alerts = categories.get("alert", {}).get("count", 0)
+            features = categories.get("feature", {}).get("count", 0)
+            structure = categories.get("structure", {}).get("count", 0)
+            
+            # Calculate score based on WAVE results
+            # Errors are most critical, alerts are warnings
+            error_penalty = errors * 15
+            alert_penalty = alerts * 5
+            
+            # Positive points for good features
+            feature_bonus = min(features * 2, 20)
+            structure_bonus = min(structure * 1, 10)
+            
+            # Base score calculation
+            score = 100 - error_penalty - alert_penalty + feature_bonus + structure_bonus
+            
+            # Ensure score is within bounds
+            return max(min(score, 100), 0)
+            
+        except Exception as e:
+            logging.error(f"WAVE score calculation failed: {e}")
+            return 50  # Default score on error
+    
+    @staticmethod
+    def format_wave_issues(wave_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Format WAVE API results to our standard format"""
+        try:
+            violations = []
+            passes = []
+            
+            # Process WAVE errors as violations
+            errors = wave_result.get("categories", {}).get("error", {}).get("items", {})
+            for error_type, error_data in errors.items():
+                violations.append({
+                    "id": error_type,
+                    "description": error_data.get("description", ""),
+                    "impact": "serious",  # WAVE errors are typically serious
+                    "help": error_data.get("help", ""),
+                    "nodes": [{"target": []} for _ in range(error_data.get("count", 0))]
+                })
+            
+            # Process WAVE alerts as moderate violations
+            alerts = wave_result.get("categories", {}).get("alert", {}).get("items", {})
+            for alert_type, alert_data in alerts.items():
+                violations.append({
+                    "id": alert_type,
+                    "description": alert_data.get("description", ""),
+                    "impact": "moderate",
+                    "help": alert_data.get("help", ""),
+                    "nodes": [{"target": []} for _ in range(alert_data.get("count", 0))]
+                })
+            
+            # Process WAVE features as passes
+            features = wave_result.get("categories", {}).get("feature", {}).get("items", {})
+            for feature_type, feature_data in features.items():
+                passes.append({
+                    "id": feature_type,
+                    "description": feature_data.get("description", ""),
+                    "nodes": [{"target": []} for _ in range(feature_data.get("count", 0))]
+                })
+            
+            return {
+                "violations": violations,
+                "passes": passes,
+                "incomplete": [],
+                "inapplicable": []
+            }
+            
+        except Exception as e:
+            logging.error(f"WAVE results formatting failed: {e}")
+            return {"violations": [], "passes": [], "incomplete": [], "inapplicable": []}
+    
+    @staticmethod
+    def calculate_equalweb_score(equalweb_result: Dict[str, Any]) -> int:
+        """Calculate accessibility score from EqualWeb API results"""
+        try:
+            # EqualWeb typically provides a compliance percentage
+            compliance_score = equalweb_result.get("compliance_score", 50)
+            
+            # Convert to our 0-100 scale if needed
+            if isinstance(compliance_score, (int, float)):
+                return max(min(int(compliance_score), 100), 0)
+            
+            return 50  # Default score
+            
+        except Exception as e:
+            logging.error(f"EqualWeb score calculation failed: {e}")
+            return 50
+    
+    @staticmethod
+    def format_equalweb_issues(equalweb_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Format EqualWeb API results to our standard format"""
+        try:
+            violations = []
+            passes = []
+            
+            # Process EqualWeb violations
+            issues = equalweb_result.get("issues", [])
+            for issue in issues:
+                violations.append({
+                    "id": issue.get("rule_id", "unknown"),
+                    "description": issue.get("description", ""),
+                    "impact": issue.get("severity", "moderate").lower(),
+                    "help": issue.get("help_text", ""),
+                    "nodes": [{"target": []} for _ in range(issue.get("instances", 1))]
+                })
+            
+            # Process passed checks
+            passed_checks = equalweb_result.get("passed_checks", [])
+            for check in passed_checks:
+                passes.append({
+                    "id": check.get("rule_id", "unknown"),
+                    "description": check.get("description", ""),
+                    "nodes": []
+                })
+            
+            return {
+                "violations": violations,
+                "passes": passes,
+                "incomplete": [],
+                "inapplicable": []
+            }
+            
+        except Exception as e:
+            logging.error(f"EqualWeb results formatting failed: {e}")
+            return {"violations": [], "passes": [], "incomplete": [], "inapplicable": []}
+    
+    @staticmethod
+    def calculate_accessibe_score(accessibe_result: Dict[str, Any]) -> int:
+        """Calculate accessibility score from AccessiBe API results"""
+        try:
+            # AccessiBe might provide a percentage or grade
+            score = accessibe_result.get("accessibility_score", 50)
+            
+            if isinstance(score, (int, float)):
+                return max(min(int(score), 100), 0)
+            
+            return 50  # Default score
+            
+        except Exception as e:
+            logging.error(f"AccessiBe score calculation failed: {e}")
+            return 50
+    
+    @staticmethod
+    def format_accessibe_issues(accessibe_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Format AccessiBe API results to our standard format"""
+        try:
+            violations = []
+            passes = []
+            
+            # Process AccessiBe violations
+            violations_data = accessibe_result.get("violations", [])
+            for violation in violations_data:
+                violations.append({
+                    "id": violation.get("id", "unknown"),
+                    "description": violation.get("message", ""),
+                    "impact": violation.get("impact", "moderate").lower(),
+                    "help": violation.get("help", ""),
+                    "nodes": [{"target": []} for _ in range(violation.get("count", 1))]
+                })
+            
+            # Process passed tests
+            passes_data = accessibe_result.get("passes", [])
+            for passed in passes_data:
+                passes.append({
+                    "id": passed.get("id", "unknown"),
+                    "description": passed.get("message", ""),
+                    "nodes": []
+                })
+            
+            return {
+                "violations": violations,
+                "passes": passes,
+                "incomplete": [],
+                "inapplicable": []
+            }
+            
+        except Exception as e:
+            logging.error(f"AccessiBe results formatting failed: {e}")
+            return {"violations": [], "passes": [], "incomplete": [], "inapplicable": []}
+
+
+# Server Action: Run Scan with External API
+async def runScanWithExternalApi(scan_request_id: str) -> Dict[str, Any]:
+    """
+    Server action to run accessibility scan using external APIs
+    
+    Args:
+        scan_request_id: The ID of the scan request to process
+        
+    Returns:
+        Dict containing success status and details
+    """
+    try:
+        # Fetch the ScanRequest by ID
+        scan_request = await db.scan_requests.find_one({"id": scan_request_id})
+        if not scan_request:
+            return {
+                "success": False,
+                "error": "Scan request not found",
+                "scan_id": scan_request_id
+            }
+        
+        scan_obj = ScanRequest(**scan_request)
+        url = str(scan_obj.url)
+        tool = scan_obj.tool
+        
+        logging.info(f"Running external API scan for {url} using {tool}")
+        
+        # Route to appropriate external API based on tool
+        if tool == ScanTool.wave:
+            result = await ExternalAPIScanner.scan_with_wave_api(url)
+        elif tool == ScanTool.equalweb:
+            result = await ExternalAPIScanner.scan_with_equalweb_api(url)
+        elif tool == ScanTool.accessibe:
+            result = await ExternalAPIScanner.scan_with_accessibe_api(url)
+        else:
+            # Fallback to axe-core for other tools
+            result = await AccessibilityScanner.scan_with_axe(url)
+        
+        # Update the ScanRequest record based on result
+        if result["success"]:
+            await db.scan_requests.update_one(
+                {"id": scan_request_id},
+                {"$set": {
+                    "status": ScanStatus.completed,
+                    "score": result["score"],
+                    "issues": result["results"]
+                }}
+            )
+            logging.info(f"External API scan completed successfully for {url}")
+            return {
+                "success": True,
+                "scan_id": scan_request_id,
+                "score": result["score"],
+                "tool": result["tool"]
+            }
+        else:
+            await db.scan_requests.update_one(
+                {"id": scan_request_id},
+                {"$set": {
+                    "status": ScanStatus.error,
+                    "error_message": result["error"]
+                }}
+            )
+            logging.error(f"External API scan failed for {url}: {result['error']}")
+            return {
+                "success": False,
+                "scan_id": scan_request_id,
+                "error": result["error"],
+                "tool": result["tool"]
+            }
+    
+    except Exception as e:
+        # Handle unexpected errors
+        error_msg = f"Server action failed: {str(e)}"
+        logging.error(error_msg)
+        
+        try:
+            await db.scan_requests.update_one(
+                {"id": scan_request_id},
+                {"$set": {
+                    "status": ScanStatus.error,
+                    "error_message": error_msg
+                }}
+            )
+        except Exception:
+            pass  # If DB update fails, at least log the error
+        
+        return {
+            "success": False,
+            "scan_id": scan_request_id,
+            "error": error_msg
+        }
 
 
 # Accessibility Scanning Service
