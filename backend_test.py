@@ -14,6 +14,9 @@ class AccessibilityScannerAPITest(unittest.TestCase):
         self.wave_scan_id = "382e9c35-8ed3-43e0-92e3-ebdfc81f537e"
         self.equalweb_scan_id = "7f9ff9d2-fe90-4641-a145-adf3dc359d75"
         self.axe_scan_id = "e8069af6-885d-402c-af45-942cc75e022e"
+        # New scan IDs from the updated UI
+        self.new_scan_id = "5d08b599-b23c-42dc-a328-c91ed40c6ad0"  # 3 failed, 39 passed, 0 incomplete
+        self.previous_scan_id = "cfce0eb0-a9ff-4f2a-9c72-e00016aa59ac"  # 3 failed, 13 passed, 0 incomplete
         # Test user IDs
         self.test_user_id = f"test_user_{uuid.uuid4().hex[:8]}"
         self.test_user_id2 = f"test_user_{uuid.uuid4().hex[:8]}"
