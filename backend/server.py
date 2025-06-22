@@ -646,33 +646,18 @@ class AccessibilityScanner:
     
     @staticmethod
     async def scan_with_wave(url: str, api_key: str) -> Dict[str, Any]:
-        """Scan website using WAVE API (placeholder for future implementation)"""
-        # TODO: Implement WAVE API integration
-        return {
-            "success": False,
-            "error": "WAVE API integration not yet implemented",
-            "tool": "wave"
-        }
+        """Scan website using WAVE API (legacy method - use ExternalAPIScanner instead)"""
+        return await ExternalAPIScanner.scan_with_wave_api(url)
     
     @staticmethod
     async def scan_with_equalweb(url: str, api_key: str) -> Dict[str, Any]:
-        """Scan website using EqualWeb API (placeholder for future implementation)"""
-        # TODO: Implement EqualWeb API integration
-        return {
-            "success": False,
-            "error": "EqualWeb API integration not yet implemented",
-            "tool": "equalweb"
-        }
+        """Scan website using EqualWeb API (legacy method - use ExternalAPIScanner instead)"""
+        return await ExternalAPIScanner.scan_with_equalweb_api(url)
     
     @staticmethod
     async def scan_with_accessibe(url: str, api_key: str) -> Dict[str, Any]:
-        """Scan website using AccessiBe API (placeholder for future implementation)"""
-        # TODO: Implement AccessiBe API integration
-        return {
-            "success": False,
-            "error": "AccessiBe API integration not yet implemented", 
-            "tool": "accessibe"
-        }
+        """Scan website using AccessiBe API (legacy method - use ExternalAPIScanner instead)"""
+        return await ExternalAPIScanner.scan_with_accessibe_api(url)
 
 
 async def perform_accessibility_scan(scan_id: str, url: str, tool: ScanTool):
