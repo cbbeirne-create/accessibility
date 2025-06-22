@@ -683,19 +683,12 @@ async def perform_accessibility_scan(scan_id: str, url: str, tool: ScanTool):
         # Perform the scan based on tool selection
         if tool == ScanTool.axe_core:
             result = await AccessibilityScanner.scan_with_axe(url)
-        elif tool == ScanTool.wave:
-            api_key = os.getenv("WAVE_API_KEY")
-            result = await AccessibilityScanner.scan_with_wave(url, api_key)
-        elif tool == ScanTool.equalweb:
-            api_key = os.getenv("EQUALWEB_API_KEY")
-            result = await AccessibilityScanner.scan_with_equalweb(url, api_key)
-        elif tool == ScanTool.accessibe:
-            api_key = os.getenv("ACCESSIBE_API_KEY")
-            result = await AccessibilityScanner.scan_with_accessibe(url, api_key)
         else:
-            result = {"success": False, "error": f"Unknown scan tool: {tool}"}
+            # For external APIs, use the server action
+            external_result = await runScanWithExternalApi(scan_id)
+            return  # External API handler already updates the database
         
-        # Update scan request in database
+        # Update scan request in database (for axe-core only)
         if result["success"]:
             await db.scan_requests.update_one(
                 {"id": scan_id},
