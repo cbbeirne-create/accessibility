@@ -10,6 +10,8 @@ class AccessibilityScannerAPITest(unittest.TestCase):
         # Use the public endpoint for testing
         self.base_url = "https://3f2797e6-9bad-45f5-ae39-514f6005b46a.preview.emergentagent.com/api"
         self.test_scan_id = None
+        # Specific scan ID from the request for testing
+        self.external_scan_id = "382e9c35-8ed3-43e0-92e3-ebdfc81f537e"
         
     def test_01_health_check(self):
         """Test the API health check endpoint"""
