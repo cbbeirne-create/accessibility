@@ -584,10 +584,22 @@ const ScanResultsPage = () => {
                         <td className="px-6 py-4">
                           <div className="max-w-xs">
                             <div className="font-semibold text-gray-900 mb-1">{issue.id}</div>
-                            <div className="text-sm text-gray-600">{issue.description}</div>
+                            <div className="text-sm text-gray-600 mb-2">{issue.description}</div>
                             {issue.help && (
-                              <div className="text-sm text-blue-600 mt-1">{issue.help}</div>
+                              <div className="text-sm text-blue-600 mb-2">{issue.help}</div>
                             )}
+                            {/* Remediation Guidance */}
+                            {(() => {
+                              const guidance = getRemediationGuidance(issue);
+                              return guidance ? (
+                                <div className="mt-3">
+                                  <div className="text-xs font-medium text-gray-700 mb-1">💡 How to fix it</div>
+                                  <div className="bg-gray-100 p-2 rounded text-sm text-gray-700">
+                                    {guidance}
+                                  </div>
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
                         </td>
                         <td className="px-6 py-4">
