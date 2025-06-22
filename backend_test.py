@@ -768,5 +768,91 @@ class AccessibilityScannerAPITest(unittest.TestCase):
             
         print("✅ Specific axe-core scan test completed")
 
+    def test_21_verify_new_scan_results_format(self):
+        """Test the new scan results format with three sections"""
+        print("\n🔍 Testing new scan results format...")
+        
+        # Test the specific scan ID from the updated UI
+        response = requests.get(f"{self.base_url}/scans/{self.new_scan_id}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Found scan with ID: {self.new_scan_id}")
+            print(f"URL: {data['url']}")
+            print(f"Status: {data['status']}")
+            print(f"Score: {data['score']}/100")
+            
+            # Verify the structure of the issues object
+            self.assertIn("issues", data)
+            
+            # Check for the three sections: failed, passed, incomplete
+            self.assertIn("failed", data["issues"])
+            self.assertIn("passed", data["issues"])
+            self.assertIn("incomplete", data["issues"])
+            
+            # Verify counts match what's expected
+            failed_count = len(data["issues"]["failed"])
+            passed_count = len(data["issues"]["passed"])
+            incomplete_count = len(data["issues"]["incomplete"])
+            
+            print(f"Failed issues: {failed_count}")
+            print(f"Passed tests: {passed_count}")
+            print(f"Incomplete tests: {incomplete_count}")
+            
+            # Verify counts match what's expected in the review request
+            self.assertEqual(failed_count, 3, "Expected 3 failed issues")
+            self.assertEqual(passed_count, 39, "Expected 39 passed tests")
+            self.assertEqual(incomplete_count, 0, "Expected 0 incomplete tests")
+            
+            # Verify structure of failed issues
+            if failed_count > 0:
+                first_issue = data["issues"]["failed"][0]
+                self.assertIn("id", first_issue)
+                self.assertIn("description", first_issue)
+                self.assertIn("impact", first_issue)
+                self.assertIn("wcag", first_issue)
+                
+                # Check for impact levels
+                valid_impacts = ["critical", "serious", "moderate", "minor"]
+                self.assertIn(first_issue["impact"], valid_impacts)
+                
+                print(f"Sample failed issue: {first_issue['id']} - {first_issue['impact']} impact")
+            
+            # Verify structure of passed tests
+            if passed_count > 0:
+                first_passed = data["issues"]["passed"][0]
+                self.assertIn("id", first_passed)
+                self.assertIn("description", first_passed)
+                self.assertIn("wcag", first_passed)
+                
+                print(f"Sample passed test: {first_passed['id']}")
+            
+            # Test the previous scan format as well
+            response = requests.get(f"{self.base_url}/scans/{self.previous_scan_id}")
+            if response.status_code == 200:
+                data = response.json()
+                print(f"\n✅ Found previous scan with ID: {self.previous_scan_id}")
+                
+                # Verify counts match what's expected
+                failed_count = len(data["issues"]["failed"])
+                passed_count = len(data["issues"]["passed"])
+                incomplete_count = len(data["issues"].get("incomplete", []))
+                
+                print(f"Failed issues: {failed_count}")
+                print(f"Passed tests: {passed_count}")
+                print(f"Incomplete tests: {incomplete_count}")
+                
+                # Verify counts match what's expected in the review request
+                self.assertEqual(failed_count, 3, "Expected 3 failed issues")
+                self.assertEqual(passed_count, 13, "Expected 13 passed tests")
+                self.assertEqual(incomplete_count, 0, "Expected 0 incomplete tests")
+            else:
+                print(f"❌ Previous scan not found (status code: {response.status_code})")
+        else:
+            print(f"❌ New scan not found (status code: {response.status_code})")
+            self.skipTest(f"Scan with ID {self.new_scan_id} not found")
+            
+        print("✅ New scan results format test completed")
+
 if __name__ == "__main__":
     unittest.main(argv=['first-arg-is-ignored'], exit=False)
