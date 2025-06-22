@@ -777,9 +777,11 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const userId = UserManager.getUserId();
 
   const fetchScans = async () => {
     try {
+      // Get all scans for overview, but we could filter by user if needed
       const response = await axios.get(`${API}/scans`);
       setScans(response.data);
     } catch (error) {
@@ -835,14 +837,22 @@ const Dashboard = () => {
           Accessibility Scanner Dashboard
         </h1>
         <p className="text-lg text-gray-600 mb-6">
-          Monitor your website accessibility scans and compliance reports
+          Monitor website accessibility scans and compliance reports
         </p>
-        <Link
-          to="/scan"
-          className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-        >
-          Run New Scan
-        </Link>
+        <div className="flex justify-center space-x-4">
+          <Link
+            to="/scan"
+            className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+          >
+            Run New Scan
+          </Link>
+          <Link
+            to="/my-scans"
+            className="inline-block bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+          >
+            View My Scans
+          </Link>
+        </div>
       </div>
 
       {error && (
@@ -852,14 +862,14 @@ const Dashboard = () => {
       )}
 
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Recent Scans</h2>
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">Recent Scans (All Users)</h2>
         {scans.length === 0 ? (
           <div className="bg-white rounded-lg shadow-md p-8 text-center">
             <p className="text-gray-500">No scans yet. Run your first accessibility scan!</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {scans.map((scan) => (
+            {scans.slice(0, 10).map((scan) => (
               <div key={scan.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
@@ -867,9 +877,16 @@ const Dashboard = () => {
                     <p className="text-sm text-gray-500">
                       {new Date(scan.createdAt).toLocaleString()}
                     </p>
-                    <p className="text-sm text-gray-500">
-                      Tool: {scan.tool || "axe-core"}
-                    </p>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <p className="text-sm text-gray-500">
+                        Tool: {scan.tool || "axe-core"}
+                      </p>
+                      {scan.user_id === userId && (
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                          Your Scan
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center space-x-3">
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(scan.status)}`}>
