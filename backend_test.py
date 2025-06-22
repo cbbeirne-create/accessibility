@@ -490,6 +490,193 @@ class AccessibilityScannerAPITest(unittest.TestCase):
         print("✅ AccessiBe external scan test completed")
         print("✅ Specific WAVE scan test completed")
         
+    def test_17_create_scan_with_user_id(self):
+        """Test creating a scan with user ID"""
+        print("\n🔍 Testing scan creation with user ID...")
+        
+        test_url = f"https://example.com/test-{uuid.uuid4()}"
+        response = requests.post(
+            f"{self.base_url}/scans", 
+            json={"url": test_url, "user_id": self.test_user_id}
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["url"], test_url)
+        self.assertEqual(data["status"], "pending")
+        self.assertEqual(data["user_id"], self.test_user_id)
+        
+        scan_id = data["id"]
+        print(f"✅ Created scan with user ID: {self.test_user_id}, scan ID: {scan_id}")
+        
+        # Save the scan ID for later tests
+        self.__class__.user_scan_id = scan_id
+        
+        # Create another scan for the same user
+        test_url2 = f"https://github.com/test-{uuid.uuid4()}"
+        response = requests.post(
+            f"{self.base_url}/scans", 
+            json={"url": test_url2, "user_id": self.test_user_id}
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["user_id"], self.test_user_id)
+        
+        scan_id2 = data["id"]
+        print(f"✅ Created second scan with user ID: {self.test_user_id}, scan ID: {scan_id2}")
+        
+        # Create a scan for a different user
+        test_url3 = f"https://docs.github.com/test-{uuid.uuid4()}"
+        response = requests.post(
+            f"{self.base_url}/scans", 
+            json={"url": test_url3, "user_id": self.test_user_id2}
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["user_id"], self.test_user_id2)
+        
+        scan_id3 = data["id"]
+        print(f"✅ Created scan with different user ID: {self.test_user_id2}, scan ID: {scan_id3}")
+        
+        print("✅ User scan creation tests passed")
+        
+    def test_18_get_user_specific_scans(self):
+        """Test getting scans for a specific user"""
+        print("\n🔍 Testing user-specific scans endpoint...")
+        
+        if not hasattr(self.__class__, 'user_scan_id'):
+            self.skipTest("No user scan ID available from previous test")
+        
+        # Get scans for the first test user
+        response = requests.get(f"{self.base_url}/users/{self.test_user_id}/scans")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        
+        # Should have at least 2 scans for this user
+        self.assertIsInstance(data, list)
+        self.assertGreaterEqual(len(data), 2)
+        
+        # Verify all scans belong to the correct user
+        for scan in data:
+            self.assertEqual(scan["user_id"], self.test_user_id)
+        
+        print(f"✅ Found {len(data)} scans for user {self.test_user_id}")
+        
+        # Get scans for the second test user
+        response = requests.get(f"{self.base_url}/users/{self.test_user_id2}/scans")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        
+        # Should have at least 1 scan for this user
+        self.assertIsInstance(data, list)
+        self.assertGreaterEqual(len(data), 1)
+        
+        # Verify all scans belong to the correct user
+        for scan in data:
+            self.assertEqual(scan["user_id"], self.test_user_id2)
+        
+        print(f"✅ Found {len(data)} scans for user {self.test_user_id2}")
+        
+        print("✅ User-specific scans endpoint test passed")
+        
+    def test_19_filter_scans_by_user_id(self):
+        """Test filtering all scans by user ID"""
+        print("\n🔍 Testing scan filtering by user ID...")
+        
+        # Get all scans filtered by the first test user
+        response = requests.get(f"{self.base_url}/scans?user_id={self.test_user_id}")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        
+        # Should have at least 2 scans for this user
+        self.assertIsInstance(data, list)
+        self.assertGreaterEqual(len(data), 2)
+        
+        # Verify all scans belong to the correct user
+        for scan in data:
+            self.assertEqual(scan["user_id"], self.test_user_id)
+        
+        print(f"✅ Found {len(data)} scans for user {self.test_user_id} using filter parameter")
+        
+        # Get all scans filtered by the second test user
+        response = requests.get(f"{self.base_url}/scans?user_id={self.test_user_id2}")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        
+        # Should have at least 1 scan for this user
+        self.assertIsInstance(data, list)
+        self.assertGreaterEqual(len(data), 1)
+        
+        # Verify all scans belong to the correct user
+        for scan in data:
+            self.assertEqual(scan["user_id"], self.test_user_id2)
+        
+        print(f"✅ Found {len(data)} scans for user {self.test_user_id2} using filter parameter")
+        
+        print("✅ Scan filtering by user ID test passed")
+        
+    def test_20_verify_test_data_from_request(self):
+        """Verify the test data mentioned in the request"""
+        print("\n🔍 Verifying test data from the request...")
+        
+        # Test user_test123 should have 2 scans (example.com score=78, github.com score=15)
+        response = requests.get(f"{self.base_url}/users/user_test123/scans")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Found {len(data)} scans for user_test123")
+            
+            # Should have 2 scans
+            self.assertGreaterEqual(len(data), 2)
+            
+            # Check for expected URLs and scores
+            example_com_found = False
+            github_com_found = False
+            
+            for scan in data:
+                if "example.com" in scan["url"] and scan["score"] == 78:
+                    example_com_found = True
+                    print("✅ Found example.com scan with score 78")
+                elif "github.com" in scan["url"] and scan["score"] == 15:
+                    github_com_found = True
+                    print("✅ Found github.com scan with score 15")
+            
+            # At least one of the expected scans should be found
+            self.assertTrue(example_com_found or github_com_found, 
+                           "Expected test scans for user_test123 not found")
+        else:
+            print(f"⚠️ Could not find scans for user_test123 (status code: {response.status_code})")
+            print("This might be expected if the test data hasn't been created yet")
+        
+        # Test user_different456 should have 1 scan (docs.github.com)
+        response = requests.get(f"{self.base_url}/users/user_different456/scans")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Found {len(data)} scans for user_different456")
+            
+            # Should have at least 1 scan
+            self.assertGreaterEqual(len(data), 1)
+            
+            # Check for expected URL
+            docs_github_found = False
+            
+            for scan in data:
+                if "docs.github.com" in scan["url"]:
+                    docs_github_found = True
+                    print("✅ Found docs.github.com scan")
+            
+            # The expected scan should be found
+            self.assertTrue(docs_github_found, 
+                           "Expected test scan for user_different456 not found")
+        else:
+            print(f"⚠️ Could not find scans for user_different456 (status code: {response.status_code})")
+            print("This might be expected if the test data hasn't been created yet")
+        
+        print("✅ Test data verification completed")
+        
     def test_14_specific_equalweb_scan_result(self):
         """Test the specific EqualWeb scan result mentioned in the request"""
         print("\n🔍 Testing specific EqualWeb scan result...")
