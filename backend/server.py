@@ -705,6 +705,76 @@ class AccessibilityScanner:
         except Exception as e:
             logging.error(f"Score calculation failed: {e}")
             return 50  # Default score on error
+
+    @staticmethod
+    def format_axe_issues(axe_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Format axe-core results to standardized issues format"""
+        try:
+            passed = []
+            failed = []
+            incomplete = []
+            
+            # Process axe violations as failed issues
+            violations = axe_results.get("violations", [])
+            for violation in violations:
+                nodes = violation.get("nodes", [])
+                failed.append({
+                    "id": violation.get("id", "unknown"),
+                    "description": violation.get("description", ""),
+                    "impact": violation.get("impact", "moderate"),
+                    "help": violation.get("help", ""),
+                    "helpUrl": violation.get("helpUrl", ""),
+                    "count": len(nodes),
+                    "wcag": violation.get("tags", []),
+                    "selectors": [node.get("target", []) for node in nodes],
+                    "elements": [
+                        {
+                            "html": node.get("html", ""),
+                            "target": node.get("target", []),
+                            "failureSummary": node.get("failureSummary", "")
+                        } for node in nodes
+                    ],
+                    "type": "violation"
+                })
+            
+            # Process axe passes as passed tests
+            passes = axe_results.get("passes", [])
+            for passed_test in passes:
+                nodes = passed_test.get("nodes", [])
+                passed.append({
+                    "id": passed_test.get("id", "unknown"),
+                    "description": passed_test.get("description", ""),
+                    "help": passed_test.get("help", ""),
+                    "helpUrl": passed_test.get("helpUrl", ""),
+                    "count": len(nodes),
+                    "wcag": passed_test.get("tags", []),
+                    "type": "passed_test"
+                })
+            
+            # Process axe incomplete as incomplete tests
+            incomplete_tests = axe_results.get("incomplete", [])
+            for incomplete_test in incomplete_tests:
+                nodes = incomplete_test.get("nodes", [])
+                incomplete.append({
+                    "id": incomplete_test.get("id", "unknown"),
+                    "description": incomplete_test.get("description", ""),
+                    "help": incomplete_test.get("help", ""),
+                    "helpUrl": incomplete_test.get("helpUrl", ""),
+                    "count": len(nodes),
+                    "wcag": incomplete_test.get("tags", []),
+                    "reason": "Automated testing cannot determine if this passes or fails",
+                    "type": "incomplete_test"
+                })
+            
+            return {
+                "passed": passed,
+                "failed": failed,
+                "incomplete": incomplete
+            }
+            
+        except Exception as e:
+            logging.error(f"Axe results formatting failed: {e}")
+            return {"passed": [], "failed": [], "incomplete": []}
     
     @staticmethod
     async def scan_with_wave(url: str, api_key: str) -> Dict[str, Any]:
