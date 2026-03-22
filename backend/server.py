@@ -1704,7 +1704,6 @@ async def handle_subscription_canceled(subscription):
 async def handle_payment_succeeded(invoice):
     """Handle successful payment"""
     customer_id = invoice['customer']
-    subscription_id = invoice['subscription']
     
     # Reset monthly scan count on successful payment
     current_period_start = datetime.fromtimestamp(invoice['period_start'])
