@@ -173,7 +173,153 @@ class ScanRequestUpdate(BaseModel):
     error_message: Optional[str] = None
 
 
-# External API Integration Classes
+# Authentication utilities
+def verify_password(plain_password, hashed_password):
+    """Verify password against hash"""
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password):
+    """Hash password"""
+    return pwd_context.hash(password)
+
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    """Create JWT token"""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get current authenticated user"""
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+        token_data = TokenData(email=email)
+    except JWTError:
+        raise credentials_exception
+    
+    user = await get_user_by_email(token_data.email)
+    if user is None:
+        raise credentials_exception
+    
+    # Update last login
+    await db.users.update_one(
+        {"email": user["email"]},
+        {"$set": {"last_login": datetime.utcnow()}}
+    )
+    
+    return User(**user)
+
+
+async def get_user_by_email(email: str):
+    """Get user by email from database"""
+    user = await db.users.find_one({"email": email})
+    return user
+
+
+async def authenticate_user(email: str, password: str):
+    """Authenticate user with email and password"""
+    user = await get_user_by_email(email)
+    if not user:
+        return False
+    if not verify_password(password, user["hashed_password"]):
+        return False
+    return user
+
+
+def get_user_scan_limits(plan: UserPlan) -> Dict[str, Any]:
+    """Get scan limits for user plan"""
+    if plan == UserPlan.free:
+        return {
+            "monthly_scans": 2,
+            "can_export_pdf": False,
+            "can_export_json": True,
+            "can_view_screenshots": True
+        }
+    elif plan == UserPlan.pro:
+        return {
+            "monthly_scans": -1,  # Unlimited
+            "can_export_pdf": True,
+            "can_export_json": True,
+            "can_view_screenshots": True
+        }
+
+
+async def check_scan_limits(user: User) -> bool:
+    """Check if user can create more scans this month"""
+    limits = get_user_scan_limits(user.plan)
+    
+    if limits["monthly_scans"] == -1:  # Unlimited
+        return True
+    
+    return user.scans_used_this_month < limits["monthly_scans"]
+
+
+async def increment_user_scan_count(user_id: str):
+    """Increment user's monthly scan count"""
+    await db.users.update_one(
+        {"id": user_id},
+        {"$inc": {"scans_used_this_month": 1}}
+    )
+
+
+async def reset_monthly_scan_counts():
+    """Reset all users' monthly scan counts (to be run monthly)"""
+    await db.users.update_many(
+        {},
+        {"$set": {"scans_used_this_month": 0}}
+    )
+
+
+# Stripe utilities
+def create_stripe_customer(email: str, name: Optional[str] = None):
+    """Create Stripe customer"""
+    try:
+        customer = stripe.Customer.create(
+            email=email,
+            name=name
+        )
+        return customer
+    except Exception as e:
+        logging.error(f"Failed to create Stripe customer: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create customer")
+
+
+def create_stripe_checkout_session(customer_id: str, price_id: str, success_url: str, cancel_url: str):
+    """Create Stripe checkout session"""
+    try:
+        session = stripe.checkout.Session.create(
+            customer=customer_id,
+            payment_method_types=['card'],
+            line_items=[{
+                'price': price_id,
+                'quantity': 1,
+            }],
+            mode='subscription',
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata={'customer_id': customer_id}
+        )
+        return session
+    except Exception as e:
+        logging.error(f"Failed to create checkout session: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create checkout session")
 class ExternalAPIScanner:
     
     @staticmethod
