@@ -778,7 +778,31 @@ const ScanResultsPage = () => {
             </div>
           )}
 
-          {/* Action Buttons */}
+          {/* Visual Evidence Section */}
+          {scan.full_page_screenshot && (
+            <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
+              <h3 className="text-2xl font-bold text-gray-800 mb-4">📸 Visual Evidence</h3>
+              <p className="text-gray-600 mb-4">
+                Full page screenshot with accessibility issues highlighted in red.
+              </p>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <img
+                  src={`data:image/png;base64,${scan.full_page_screenshot}`}
+                  alt="Full page screenshot with accessibility issues highlighted"
+                  className="max-w-full h-auto rounded border shadow-sm"
+                  style={{ maxHeight: '600px', objectFit: 'contain' }}
+                />
+                <div className="mt-4 text-center">
+                  <button
+                    onClick={() => window.open(`${API}/scans/${scan.id}/screenshot`, '_blank')}
+                    className="bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+                  >
+                    View Full Size
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="flex justify-center space-x-4 flex-wrap gap-y-2">
             <button
               onClick={() => navigate('/scan')}
