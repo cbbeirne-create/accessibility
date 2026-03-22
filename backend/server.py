@@ -35,6 +35,20 @@ import calendar
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+# Authentication configuration
+SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30 * 24 * 60  # 30 days
+
+# Stripe configuration
+stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
+STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET')
+
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+security = HTTPBearer()
+
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -66,6 +80,69 @@ class ScanTool(str, Enum):
     wave = "wave"
     equalweb = "equalweb"
     accessibe = "accessibe"
+
+
+class UserPlan(str, Enum):
+    free = "free"
+    pro = "pro"
+
+
+class SubscriptionStatus(str, Enum):
+    active = "active"
+    inactive = "inactive"
+    canceled = "canceled"
+    past_due = "past_due"
+
+
+# User Authentication Models
+class User(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    email: EmailStr
+    full_name: Optional[str] = None
+    hashed_password: str
+    plan: UserPlan = Field(default=UserPlan.free)
+    subscription_status: SubscriptionStatus = Field(default=SubscriptionStatus.inactive)
+    stripe_customer_id: Optional[str] = None
+    stripe_subscription_id: Optional[str] = None
+    scans_used_this_month: int = Field(default=0)
+    current_period_start: Optional[datetime] = None
+    current_period_end: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_login: Optional[datetime] = None
+    is_active: bool = Field(default=True)
+
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    full_name: Optional[str] = None
+    password: str
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+
+
+class UserProfile(BaseModel):
+    id: str
+    email: EmailStr
+    full_name: Optional[str] = None
+    plan: UserPlan
+    subscription_status: SubscriptionStatus
+    scans_used_this_month: int
+    scans_remaining: int
+    current_period_start: Optional[datetime] = None
+    current_period_end: Optional[datetime] = None
+    created_at: datetime
 
 
 class ScanRequest(BaseModel):
