@@ -518,7 +518,247 @@ class ExternalAPIScanner:
             return {"passed": [], "failed": [], "incomplete": []}
 
 
-# Server Action: Run Scan with External API
+# Export System for Accessibility Reports
+class ReportExporter:
+    
+    @staticmethod
+    async def generate_pdf_report(scan_data: Dict[str, Any]) -> bytes:
+        """Generate PDF report from scan data"""
+        try:
+            # Create temporary file for PDF
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                doc = SimpleDocTemplate(tmp_file.name, pagesize=letter)
+                styles = getSampleStyleSheet()
+                story = []
+                
+                # Title
+                title_style = ParagraphStyle(
+                    'CustomTitle',
+                    parent=styles['Heading1'],
+                    fontSize=24,
+                    textColor=colors.darkblue,
+                    alignment=1  # Center alignment
+                )
+                story.append(Paragraph("Accessibility Scan Report", title_style))
+                story.append(Spacer(1, 0.3 * inch))
+                
+                # Scan Information
+                info_data = [
+                    ['URL:', scan_data.get('url', 'N/A')],
+                    ['Scan Date:', datetime.fromisoformat(scan_data.get('createdAt', '')).strftime('%Y-%m-%d %H:%M:%S') if scan_data.get('createdAt') else 'N/A'],
+                    ['Tool:', scan_data.get('tool', 'N/A').upper()],
+                    ['Status:', scan_data.get('status', 'N/A').upper()],
+                    ['Accessibility Score:', f"{scan_data.get('score', 'N/A')}/100" if scan_data.get('score') is not None else 'N/A']
+                ]
+                
+                info_table = Table(info_data, colWidths=[2*inch, 4*inch])
+                info_table.setStyle(TableStyle([
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                    ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 11),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey)
+                ]))
+                story.append(info_table)
+                story.append(Spacer(1, 0.2 * inch))
+                
+                # Issues Summary
+                if scan_data.get('issues'):
+                    issues = scan_data['issues']
+                    failed_count = len(issues.get('failed', []))
+                    passed_count = len(issues.get('passed', []))
+                    incomplete_count = len(issues.get('incomplete', []))
+                    
+                    story.append(Paragraph("Summary", styles['Heading2']))
+                    summary_data = [
+                        ['Failed Tests:', str(failed_count)],
+                        ['Passed Tests:', str(passed_count)],
+                        ['Incomplete Tests:', str(incomplete_count)]
+                    ]
+                    
+                    summary_table = Table(summary_data, colWidths=[2*inch, 1*inch])
+                    summary_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 11),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey)
+                    ]))
+                    story.append(summary_table)
+                    story.append(Spacer(1, 0.2 * inch))
+                    
+                    # Failed Issues Details
+                    if failed_count > 0:
+                        story.append(Paragraph("Failed Accessibility Tests", styles['Heading2']))
+                        for i, issue in enumerate(issues['failed'][:10]):  # Limit to first 10
+                            story.append(Paragraph(f"{i+1}. {issue.get('id', 'Unknown Issue')}", styles['Heading3']))
+                            story.append(Paragraph(f"<b>Description:</b> {issue.get('description', 'N/A')}", styles['Normal']))
+                            story.append(Paragraph(f"<b>Impact:</b> {issue.get('impact', 'N/A').title()}", styles['Normal']))
+                            
+                            if issue.get('wcag'):
+                                wcag_refs = [tag for tag in issue['wcag'] if 'wcag' in tag.lower()]
+                                if wcag_refs:
+                                    story.append(Paragraph(f"<b>WCAG Reference:</b> {', '.join(wcag_refs)}", styles['Normal']))
+                            
+                            if issue.get('help'):
+                                story.append(Paragraph(f"<b>Help:</b> {issue['help']}", styles['Normal']))
+                            
+                            story.append(Spacer(1, 0.1 * inch))
+                
+                # Build PDF
+                doc.build(story)
+                
+                # Read the generated PDF
+                with open(tmp_file.name, 'rb') as pdf_file:
+                    pdf_bytes = pdf_file.read()
+                
+                # Clean up temp file
+                os.unlink(tmp_file.name)
+                return pdf_bytes
+                
+        except Exception as e:
+            logging.error(f"PDF generation failed: {e}")
+            raise Exception(f"Failed to generate PDF report: {e}")
+    
+    @staticmethod
+    async def generate_json_report(scan_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate structured JSON report from scan data"""
+        try:
+            # Create comprehensive JSON structure for developers
+            json_report = {
+                "scan_info": {
+                    "id": scan_data.get('id'),
+                    "url": scan_data.get('url'),
+                    "scan_date": scan_data.get('createdAt'),
+                    "tool": scan_data.get('tool'),
+                    "status": scan_data.get('status'),
+                    "score": scan_data.get('score'),
+                    "user_id": scan_data.get('user_id')
+                },
+                "results": {
+                    "summary": {},
+                    "failed_tests": [],
+                    "passed_tests": [],
+                    "incomplete_tests": []
+                },
+                "metadata": scan_data.get('scan_metadata', {}),
+                "export_timestamp": datetime.utcnow().isoformat()
+            }
+            
+            if scan_data.get('issues'):
+                issues = scan_data['issues']
+                
+                # Summary
+                json_report["results"]["summary"] = {
+                    "total_failed": len(issues.get('failed', [])),
+                    "total_passed": len(issues.get('passed', [])),
+                    "total_incomplete": len(issues.get('incomplete', [])),
+                    "critical_issues": len([i for i in issues.get('failed', []) if i.get('impact') == 'critical']),
+                    "serious_issues": len([i for i in issues.get('failed', []) if i.get('impact') == 'serious'])
+                }
+                
+                # Detailed results
+                json_report["results"]["failed_tests"] = issues.get('failed', [])
+                json_report["results"]["passed_tests"] = issues.get('passed', [])
+                json_report["results"]["incomplete_tests"] = issues.get('incomplete', [])
+            
+            # Add visual evidence info if available
+            if scan_data.get('full_page_screenshot'):
+                json_report["visual_evidence"] = {
+                    "full_page_screenshot_available": True,
+                    "issue_screenshots_count": len(scan_data.get('evidence_screenshots', {}))
+                }
+            
+            return json_report
+            
+        except Exception as e:
+            logging.error(f"JSON generation failed: {e}")
+            raise Exception(f"Failed to generate JSON report: {e}")
+
+
+@api_router.get("/scans/{scan_id}/export/pdf")
+async def export_scan_pdf(scan_id: str):
+    """Export scan results as PDF"""
+    try:
+        # Get scan data
+        scan_data = await db.scan_requests.find_one({"id": scan_id})
+        if not scan_data:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        # Generate PDF
+        pdf_bytes = await ReportExporter.generate_pdf_report(scan_data)
+        
+        # Create filename
+        url_safe = scan_data.get('url', 'scan').replace('https://', '').replace('http://', '').replace('/', '_')
+        filename = f"accessibility_report_{url_safe}_{scan_id[:8]}.pdf"
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"PDF export failed for scan {scan_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate PDF report")
+
+
+@api_router.get("/scans/{scan_id}/export/json")
+async def export_scan_json(scan_id: str):
+    """Export scan results as JSON"""
+    try:
+        # Get scan data
+        scan_data = await db.scan_requests.find_one({"id": scan_id})
+        if not scan_data:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        # Generate JSON report
+        json_report = await ReportExporter.generate_json_report(scan_data)
+        
+        # Create filename
+        url_safe = scan_data.get('url', 'scan').replace('https://', '').replace('http://', '').replace('/', '_')
+        filename = f"accessibility_data_{url_safe}_{scan_id[:8]}.json"
+        
+        return Response(
+            content=json.dumps(json_report, indent=2, default=str),
+            media_type="application/json",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"JSON export failed for scan {scan_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate JSON report")
+
+
+@api_router.get("/scans/{scan_id}/screenshot")
+async def get_scan_screenshot(scan_id: str):
+    """Get full page screenshot for scan"""
+    try:
+        scan_data = await db.scan_requests.find_one({"id": scan_id})
+        if not scan_data:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        screenshot_data = scan_data.get('full_page_screenshot')
+        if not screenshot_data:
+            raise HTTPException(status_code=404, detail="Screenshot not available")
+        
+        # Decode base64 image
+        image_bytes = base64.b64decode(screenshot_data)
+        
+        return Response(
+            content=image_bytes,
+            media_type="image/png",
+            headers={"Content-Disposition": f"inline; filename=scan_{scan_id[:8]}_screenshot.png"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Screenshot retrieval failed for scan {scan_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve screenshot")
 async def runScanWithExternalApi(scan_request_id: str) -> Dict[str, Any]:
     """
     Server action to run accessibility scan using external APIs
