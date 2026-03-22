@@ -904,7 +904,6 @@ const ScanPage = () => {
       }, 1500);
 
     } catch (error) {
-      console.error("Error creating scan:", error);
       setMessage("Failed to start scan. Please check the URL and try again.");
       setMessageType("error");
     } finally {
