@@ -1,10 +1,140 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, createContext, useContext } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, Link, useParams, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, useParams, useNavigate, Navigate } from "react-router-dom";
 import axios from "axios";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+// Authentication Context
+const AuthContext = createContext();
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState(localStorage.getItem('access_token'));
+
+  // Setup axios interceptor for auth
+  useEffect(() => {
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete axios.defaults.headers.common['Authorization'];
+    }
+  }, [token]);
+
+  // Load user profile on mount
+  useEffect(() => {
+    const loadUser = async () => {
+      if (token) {
+        try {
+          const response = await axios.get(`${API}/auth/me`);
+          setUser(response.data);
+        } catch (error) {
+          // Token is invalid
+          logout();
+        }
+      }
+      setLoading(false);
+    };
+
+    loadUser();
+  }, [token]);
+
+  const login = async (email, password) => {
+    try {
+      const response = await axios.post(`${API}/auth/login`, {
+        email,
+        password
+      });
+      
+      const { access_token } = response.data;
+      localStorage.setItem('access_token', access_token);
+      setToken(access_token);
+      
+      // Fetch user profile
+      const userResponse = await axios.get(`${API}/auth/me`);
+      setUser(userResponse.data);
+      
+      return { success: true };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.response?.data?.detail || 'Login failed' 
+      };
+    }
+  };
+
+  const signup = async (email, password, fullName) => {
+    try {
+      const response = await axios.post(`${API}/auth/signup`, {
+        email,
+        password,
+        full_name: fullName
+      });
+      
+      const { access_token } = response.data;
+      localStorage.setItem('access_token', access_token);
+      setToken(access_token);
+      
+      // Fetch user profile
+      const userResponse = await axios.get(`${API}/auth/me`);
+      setUser(userResponse.data);
+      
+      return { success: true };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.response?.data?.detail || 'Signup failed' 
+      };
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('access_token');
+    setToken(null);
+    setUser(null);
+    delete axios.defaults.headers.common['Authorization'];
+  };
+
+  const value = {
+    user,
+    login,
+    signup,
+    logout,
+    loading,
+    isAuthenticated: !!user
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// Protected Route Component
+const ProtectedRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+  
+  return isAuthenticated ? children : <Navigate to="/login" />;
+};
 
 // WCAG Remediation Guidance Dictionary
 const WCAG_REMEDIATION = {
