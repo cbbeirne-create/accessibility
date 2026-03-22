@@ -6,7 +6,7 @@ import sys
 class RemediationGuidanceTest(unittest.TestCase):
     def setUp(self):
         # Use the public endpoint for testing
-        self.base_url = "https://3f2797e6-9bad-45f5-ae39-514f6005b46a.preview.emergentagent.com/api"
+        self.base_url = "https://scan-a11y.preview.emergentagent.com/api"
         # Specific scan IDs from the review request
         self.new_scan_id = "a6f27036-9989-4752-95a6-2f846640ca72"  # 3 failed issues with remediation
         self.previous_scan_id = "5d08b599-b23c-42dc-a328-c91ed40c6ad0"  # 39 passed, 3 failed with guidance

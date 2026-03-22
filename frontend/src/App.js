@@ -1,7 +1,8 @@
 import React, { useState, useEffect, createContext, useContext } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, Link, useParams, useNavigate, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, useParams, useNavigate, Navigate, useLocation } from "react-router-dom";
 import axios from "axios";
+import { CheckCircle, Shield, Zap, BarChart3, FileText, Lock, ChevronRight, Check, X, Eye, EyeOff } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -249,84 +250,661 @@ const getRemediationGuidance = (issue) => {
   return null;
 };
 
-// Navigation Component
+// Navigation Component - Premium Enterprise Style
 const Navigation = () => {
   const { user, logout, isAuthenticated } = useAuth();
+  const location = useLocation();
+  
+  const isActive = (path) => location.pathname === path;
   
   return (
-    <nav className="bg-blue-600 text-white p-4 mb-8">
-      <div className="container mx-auto flex justify-between items-center">
-        <Link to="/" className="text-xl font-bold">Accessibility Scanner</Link>
-        
-        <div className="flex items-center space-x-4">
-          {isAuthenticated ? (
-            <>
-              <Link to="/" className="hover:text-blue-200 transition-colors">
-                Dashboard
-              </Link>
-              <Link to="/scan" className="hover:text-blue-200 transition-colors">
-                New Scan
-              </Link>
-              <Link to="/pricing" className="hover:text-blue-200 transition-colors">
-                Pricing
-              </Link>
-              
-              {/* User Info */}
-              <div className="flex items-center space-x-3">
-                <div className="text-sm">
-                  <div className="font-medium">{user.full_name || user.email}</div>
-                  <div className="text-blue-200 text-xs">
-                    {user.plan.toUpperCase()} Plan
-                    {user.scans_remaining !== -1 && (
-                      <span className="ml-2">
-                        ({user.scans_remaining} scans left)
-                      </span>
-                    )}
+    <nav className="bg-slate-900 border-b border-slate-800">
+      <div className="container mx-auto px-6 py-4">
+        <div className="flex justify-between items-center">
+          {/* Logo */}
+          <Link to="/" className="flex items-center space-x-3" data-testid="nav-logo">
+            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center">
+              <Shield className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <span className="text-xl font-bold text-white tracking-tight">Auditly</span>
+              <span className="text-xs text-slate-400 block -mt-1">Accessibility Scanner</span>
+            </div>
+          </Link>
+          
+          {/* Navigation Links */}
+          <div className="flex items-center space-x-1">
+            {isAuthenticated ? (
+              <>
+                <Link 
+                  to="/" 
+                  data-testid="nav-dashboard"
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    isActive('/') 
+                      ? 'bg-slate-800 text-white' 
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  Dashboard
+                </Link>
+                <Link 
+                  to="/scan" 
+                  data-testid="nav-new-scan"
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    isActive('/scan') 
+                      ? 'bg-slate-800 text-white' 
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  New Scan
+                </Link>
+                <Link 
+                  to="/my-scans" 
+                  data-testid="nav-my-scans"
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    isActive('/my-scans') 
+                      ? 'bg-slate-800 text-white' 
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  My Scans
+                </Link>
+                <Link 
+                  to="/pricing" 
+                  data-testid="nav-pricing"
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    isActive('/pricing') 
+                      ? 'bg-slate-800 text-white' 
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  Pricing
+                </Link>
+                
+                {/* User Menu */}
+                <div className="flex items-center ml-4 pl-4 border-l border-slate-700">
+                  <div className="flex items-center space-x-3">
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-white">{user?.full_name || user?.email?.split('@')[0]}</div>
+                      <div className="flex items-center justify-end space-x-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          user?.plan === 'pro' 
+                            ? 'bg-emerald-500/20 text-emerald-400' 
+                            : 'bg-slate-700 text-slate-400'
+                        }`}>
+                          {user?.plan?.toUpperCase()}
+                        </span>
+                        {user?.scans_remaining !== -1 && (
+                          <span className="text-xs text-slate-500">
+                            {user?.scans_remaining} left
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={logout}
+                      data-testid="nav-logout"
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-all"
+                    >
+                      Logout
+                    </button>
                   </div>
                 </div>
-                <button
-                  onClick={logout}
-                  className="bg-blue-500 hover:bg-blue-700 px-3 py-1 rounded text-sm transition-colors"
+              </>
+            ) : (
+              <>
+                <Link 
+                  to="/pricing" 
+                  data-testid="nav-pricing-guest"
+                  className="px-4 py-2 text-slate-400 hover:text-white text-sm font-medium transition-colors"
                 >
-                  Logout
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <Link to="/login" className="hover:text-blue-200 transition-colors">
-                Login
-              </Link>
-              <Link to="/signup" className="bg-blue-500 hover:bg-blue-700 px-4 py-2 rounded transition-colors">
-                Sign Up
-              </Link>
-            </>
-          )}
+                  Pricing
+                </Link>
+                <Link 
+                  to="/login" 
+                  data-testid="nav-login"
+                  className="px-4 py-2 text-slate-400 hover:text-white text-sm font-medium transition-colors"
+                >
+                  Login
+                </Link>
+                <Link 
+                  to="/signup" 
+                  data-testid="nav-signup"
+                  className="ml-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all shadow-lg shadow-emerald-500/25"
+                >
+                  Start Free
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </nav>
   );
 };
 
-// My Scans Page Component
+// Login Page Component
+const LoginPage = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const { login, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthenticated, navigate]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    const result = await login(email, password);
+    
+    if (result.success) {
+      const from = location.state?.from?.pathname || '/';
+      navigate(from);
+    } else {
+      setError(result.error);
+    }
+    
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-[calc(100vh-73px)] bg-slate-950 flex items-center justify-center px-4">
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Shield className="w-9 h-9 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">Welcome back</h1>
+          <p className="text-slate-400">Sign in to your Auditly account</p>
+        </div>
+
+        {/* Login Form */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-sm" data-testid="login-error">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+                Email address
+              </label>
+              <input
+                type="email"
+                id="email"
+                data-testid="login-email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                placeholder="you@company.com"
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  data-testid="login-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 pr-12 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                  placeholder="Enter your password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              data-testid="login-submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-slate-600 disabled:to-slate-600 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25 disabled:shadow-none"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Signing in...
+                </span>
+              ) : (
+                "Sign in"
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-slate-400 text-sm">
+              Don't have an account?{" "}
+              <Link to="/signup" className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
+                Sign up for free
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Signup Page Component
+const SignupPage = () => {
+  const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const { signup, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthenticated, navigate]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      setLoading(false);
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      setLoading(false);
+      return;
+    }
+
+    const result = await signup(email, password, fullName);
+    
+    if (result.success) {
+      navigate('/');
+    } else {
+      setError(result.error);
+    }
+    
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-[calc(100vh-73px)] bg-slate-950 flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Shield className="w-9 h-9 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">Create your account</h1>
+          <p className="text-slate-400">Start scanning for free with 2 scans/month</p>
+        </div>
+
+        {/* Signup Form */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-sm" data-testid="signup-error">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="fullName" className="block text-sm font-medium text-slate-300 mb-2">
+                Full name
+              </label>
+              <input
+                type="text"
+                id="fullName"
+                data-testid="signup-fullname"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                placeholder="John Doe"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+                Work email
+              </label>
+              <input
+                type="email"
+                id="email"
+                data-testid="signup-email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                placeholder="you@company.com"
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  data-testid="signup-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 pr-12 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                  placeholder="At least 8 characters"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-300 mb-2">
+                Confirm password
+              </label>
+              <input
+                type={showPassword ? "text" : "password"}
+                id="confirmPassword"
+                data-testid="signup-confirm-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                placeholder="Confirm your password"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              data-testid="signup-submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-slate-600 disabled:to-slate-600 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25 disabled:shadow-none"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Creating account...
+                </span>
+              ) : (
+                "Create account"
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-slate-400 text-sm">
+              Already have an account?{" "}
+              <Link to="/login" className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
+                Sign in
+              </Link>
+            </p>
+          </div>
+        </div>
+
+        {/* Trust Badges */}
+        <div className="mt-8 flex items-center justify-center space-x-6 text-slate-500">
+          <div className="flex items-center space-x-2">
+            <Lock className="w-4 h-4" />
+            <span className="text-xs">SSL Secured</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Shield className="w-4 h-4" />
+            <span className="text-xs">WCAG Compliant</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Pricing Page Component
+const PricingPage = () => {
+  const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+
+  const handleUpgrade = async () => {
+    if (!isAuthenticated) {
+      navigate('/signup');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.post(`${API}/subscription/create-checkout-session`);
+      if (response.data.checkout_url) {
+        window.location.href = response.data.checkout_url;
+      }
+    } catch (error) {
+      console.error('Failed to create checkout session:', error);
+      alert('Unable to start checkout. Please try again or contact support.');
+    }
+    setLoading(false);
+  };
+
+  const plans = [
+    {
+      name: "Free",
+      price: "$0",
+      period: "forever",
+      description: "Perfect for trying out Auditly",
+      features: [
+        { text: "2 scans per month", included: true },
+        { text: "axe-core scanning engine", included: true },
+        { text: "Basic accessibility reports", included: true },
+        { text: "JSON export", included: true },
+        { text: "PDF export", included: false },
+        { text: "Visual evidence screenshots", included: true },
+        { text: "Priority support", included: false },
+        { text: "API access", included: false },
+      ],
+      cta: isAuthenticated && user?.plan === 'free' ? "Current Plan" : "Get Started",
+      ctaAction: () => !isAuthenticated && navigate('/signup'),
+      highlighted: false,
+      disabled: isAuthenticated && user?.plan === 'free',
+    },
+    {
+      name: "Pro",
+      price: "$29",
+      period: "/month",
+      description: "For teams serious about accessibility",
+      features: [
+        { text: "Unlimited scans", included: true },
+        { text: "All scanning engines", included: true },
+        { text: "Comprehensive reports", included: true },
+        { text: "JSON export", included: true },
+        { text: "PDF export", included: true },
+        { text: "Visual evidence screenshots", included: true },
+        { text: "Priority support", included: true },
+        { text: "API access", included: true },
+      ],
+      cta: user?.plan === 'pro' ? "Current Plan" : "Upgrade to Pro",
+      ctaAction: handleUpgrade,
+      highlighted: true,
+      disabled: user?.plan === 'pro',
+    },
+  ];
+
+  return (
+    <div className="min-h-[calc(100vh-73px)] bg-slate-950">
+      {/* Hero Section */}
+      <div className="pt-16 pb-12 px-4">
+        <div className="max-w-3xl mx-auto text-center">
+          <div className="inline-flex items-center px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400 text-sm font-medium mb-6">
+            <Zap className="w-4 h-4 mr-2" />
+            Simple, transparent pricing
+          </div>
+          <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">
+            Choose your plan
+          </h1>
+          <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+            Start free and upgrade when you need more. No hidden fees, cancel anytime.
+          </p>
+        </div>
+      </div>
+
+      {/* Pricing Cards */}
+      <div className="max-w-5xl mx-auto px-4 pb-16">
+        <div className="grid md:grid-cols-2 gap-8">
+          {plans.map((plan, index) => (
+            <div
+              key={index}
+              data-testid={`pricing-card-${plan.name.toLowerCase()}`}
+              className={`relative rounded-2xl p-8 ${
+                plan.highlighted
+                  ? 'bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border-2 border-emerald-500/50'
+                  : 'bg-slate-900 border border-slate-800'
+              }`}
+            >
+              {plan.highlighted && (
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                  <span className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold px-4 py-1.5 rounded-full">
+                    MOST POPULAR
+                  </span>
+                </div>
+              )}
+
+              <div className="mb-6">
+                <h3 className="text-xl font-bold text-white mb-2">{plan.name}</h3>
+                <p className="text-slate-400 text-sm">{plan.description}</p>
+              </div>
+
+              <div className="mb-6">
+                <span className="text-4xl font-bold text-white">{plan.price}</span>
+                <span className="text-slate-400 ml-1">{plan.period}</span>
+              </div>
+
+              <button
+                onClick={plan.ctaAction}
+                disabled={plan.disabled || loading}
+                data-testid={`pricing-cta-${plan.name.toLowerCase()}`}
+                className={`w-full py-3 px-6 rounded-xl font-semibold transition-all mb-8 ${
+                  plan.highlighted
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-lg shadow-emerald-500/25'
+                    : 'bg-slate-800 hover:bg-slate-700 text-white'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {loading && plan.highlighted ? (
+                  <span className="flex items-center justify-center">
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Processing...
+                  </span>
+                ) : (
+                  plan.cta
+                )}
+              </button>
+
+              <ul className="space-y-3">
+                {plan.features.map((feature, featureIndex) => (
+                  <li key={featureIndex} className="flex items-center">
+                    {feature.included ? (
+                      <Check className="w-5 h-5 text-emerald-400 mr-3 flex-shrink-0" />
+                    ) : (
+                      <X className="w-5 h-5 text-slate-600 mr-3 flex-shrink-0" />
+                    )}
+                    <span className={feature.included ? 'text-slate-300' : 'text-slate-500'}>
+                      {feature.text}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* FAQ Section */}
+      <div className="max-w-3xl mx-auto px-4 pb-16">
+        <h2 className="text-2xl font-bold text-white text-center mb-8">Frequently asked questions</h2>
+        <div className="space-y-4">
+          {[
+            {
+              q: "What happens when I reach my scan limit?",
+              a: "On the Free plan, you'll need to wait until the next month or upgrade to Pro for unlimited scans. We'll notify you when you're approaching your limit.",
+            },
+            {
+              q: "Can I cancel my Pro subscription anytime?",
+              a: "Yes! You can cancel anytime. You'll continue to have Pro access until the end of your billing period.",
+            },
+            {
+              q: "What accessibility standards do you test against?",
+              a: "We test against WCAG 2.1 Level A and AA guidelines using the axe-core engine, which is trusted by major tech companies worldwide.",
+            },
+          ].map((faq, index) => (
+            <div key={index} className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+              <h3 className="text-white font-medium mb-2">{faq.q}</h3>
+              <p className="text-slate-400 text-sm">{faq.a}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// My Scans Page Component - Premium Enterprise Style
 const MyScansPage = () => {
   const [scans, setScans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const navigate = useNavigate();
-  const userId = UserManager.getUserId();
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchUserScans();
-    
-    // Auto-refresh every 10 seconds for pending scans
     const interval = setInterval(fetchUserScans, 10000);
     return () => clearInterval(interval);
   }, []);
 
   const fetchUserScans = async () => {
     try {
-      const response = await axios.get(`${API}/users/${userId}/scans`);
+      const response = await axios.get(`${API}/scans`);
       setScans(response.data);
       setError("");
     } catch (error) {
@@ -339,20 +917,26 @@ const MyScansPage = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed':
-        return 'text-green-600 bg-green-100';
+        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
       case 'error':
-        return 'text-red-600 bg-red-100';
+        return 'bg-red-500/20 text-red-400 border-red-500/30';
       case 'pending':
-        return 'text-yellow-600 bg-yellow-100';
+        return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
       default:
-        return 'text-gray-600 bg-gray-100';
+        return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
     }
   };
 
   const getScoreColor = (score) => {
-    if (score >= 80) return 'text-green-600';
-    if (score >= 60) return 'text-yellow-600';
-    return 'text-red-600';
+    if (score >= 80) return 'text-emerald-400';
+    if (score >= 60) return 'text-amber-400';
+    return 'text-red-400';
+  };
+
+  const getScoreBg = (score) => {
+    if (score >= 80) return 'bg-emerald-500/20';
+    if (score >= 60) return 'bg-amber-500/20';
+    return 'bg-red-500/20';
   };
 
   const formatDate = (dateString) => {
@@ -362,156 +946,141 @@ const MyScansPage = () => {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 max-w-6xl">
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-lg text-gray-600">Loading your scans...</p>
+      <div className="min-h-[calc(100vh-73px)] bg-slate-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-400">Loading your scans...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 max-w-6xl">
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
+    <div className="min-h-[calc(100vh-73px)] bg-slate-950 py-8 px-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">My Accessibility Scans</h1>
-            <p className="text-gray-600">Track and manage your website accessibility scan history</p>
+            <h1 className="text-3xl font-bold text-white mb-2">My Scans</h1>
+            <p className="text-slate-400">
+              {scans.length} {scans.length === 1 ? 'scan' : 'scans'} in your history
+            </p>
           </div>
           <Link
             to="/scan"
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+            data-testid="my-scans-new-scan"
+            className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25 flex items-center"
           >
+            <Zap className="w-5 h-5 mr-2" />
             New Scan
           </Link>
         </div>
 
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+          <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl mb-6">
             {error}
           </div>
         )}
 
         {scans.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
-            <div className="text-gray-400 text-6xl mb-4">📊</div>
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">No scans yet</h2>
-            <p className="text-gray-600 mb-6">Start your first accessibility scan to see results here.</p>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
+            <div className="w-20 h-20 bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <BarChart3 className="w-10 h-10 text-slate-600" />
+            </div>
+            <h2 className="text-xl font-semibold text-white mb-2">No scans yet</h2>
+            <p className="text-slate-400 mb-6">Start your first accessibility scan to see results here.</p>
             <Link
               to="/scan"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+              className="inline-flex items-center bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-3 px-6 rounded-xl transition-colors"
             >
+              <Zap className="w-5 h-5 mr-2" />
               Run Your First Scan
             </Link>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-800">
-                Scan History ({scans.length} {scans.length === 1 ? 'scan' : 'scans'})
-              </h2>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+            {/* Table Header */}
+            <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 bg-slate-800/50 border-b border-slate-800 text-xs font-medium text-slate-400 uppercase tracking-wider">
+              <div className="col-span-5">Website</div>
+              <div className="col-span-2">Date</div>
+              <div className="col-span-2">Tool</div>
+              <div className="col-span-1">Status</div>
+              <div className="col-span-1 text-center">Score</div>
+              <div className="col-span-1"></div>
             </div>
-            
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Website URL
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date & Time
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tool
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Score
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {scans.map((scan) => (
-                    <tr key={scan.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="max-w-xs">
-                          <div className="text-sm font-medium text-gray-900 truncate">{scan.url}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{formatDate(scan.createdAt)}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+
+            {/* Table Rows */}
+            <div className="divide-y divide-slate-800">
+              {scans.map((scan) => (
+                <div
+                  key={scan.id}
+                  className="grid grid-cols-1 md:grid-cols-12 gap-4 px-6 py-5 hover:bg-slate-800/30 transition-colors items-center"
+                  data-testid={`my-scan-row-${scan.id}`}
+                >
+                  {/* Mobile: Full card view */}
+                  <div className="md:hidden">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-white font-medium truncate">{scan.url}</h3>
+                        <p className="text-xs text-slate-500 mt-1">{formatDate(scan.createdAt)}</p>
+                      </div>
+                      <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(scan.status)}`}>
+                        {scan.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-slate-800 text-slate-400">
                           {scan.tool || "axe-core"}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(scan.status)}`}>
-                          {scan.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {scan.score !== null ? (
+                        {scan.score !== null && (
                           <span className={`text-lg font-bold ${getScoreColor(scan.score)}`}>
                             {scan.score}/100
                           </span>
-                        ) : (
-                          <span className="text-gray-400">-</span>
                         )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <button
-                          onClick={() => navigate(`/scan-results/${scan.id}`)}
-                          className="bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
-                        >
-                          View Results
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Card View */}
-            <div className="md:hidden">
-              {scans.map((scan) => (
-                <div key={scan.id} className="border-b border-gray-200 p-6">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-medium text-gray-900 truncate">{scan.url}</h3>
-                      <p className="text-xs text-gray-500 mt-1">{formatDate(scan.createdAt)}</p>
+                      </div>
+                      <button
+                        onClick={() => navigate(`/scan-results/${scan.id}`)}
+                        className="bg-slate-800 hover:bg-slate-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm flex items-center"
+                      >
+                        View
+                        <ChevronRight className="w-4 h-4 ml-1" />
+                      </button>
                     </div>
-                    <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(scan.status)}`}>
+                  </div>
+
+                  {/* Desktop: Table row */}
+                  <div className="hidden md:block col-span-5">
+                    <div className="text-white font-medium truncate">{scan.url}</div>
+                  </div>
+                  <div className="hidden md:block col-span-2">
+                    <div className="text-sm text-slate-400">{formatDate(scan.createdAt)}</div>
+                  </div>
+                  <div className="hidden md:block col-span-2">
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-slate-800 text-slate-400">
+                      {scan.tool || "axe-core"}
+                    </span>
+                  </div>
+                  <div className="hidden md:block col-span-1">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(scan.status)}`}>
                       {scan.status}
                     </span>
                   </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                        {scan.tool || "axe-core"}
-                      </span>
-                      {scan.score !== null && (
-                        <span className={`text-lg font-bold ${getScoreColor(scan.score)}`}>
-                          {scan.score}/100
-                        </span>
-                      )}
-                    </div>
+                  <div className="hidden md:flex col-span-1 justify-center">
+                    {scan.score !== null ? (
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${getScoreBg(scan.score)}`}>
+                        <span className={`text-sm font-bold ${getScoreColor(scan.score)}`}>{scan.score}</span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-600">-</span>
+                    )}
+                  </div>
+                  <div className="hidden md:flex col-span-1 justify-end">
                     <button
                       onClick={() => navigate(`/scan-results/${scan.id}`)}
-                      className="bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+                      className="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-lg transition-colors"
                     >
-                      View Results
+                      <ChevronRight className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
@@ -1015,19 +1584,18 @@ const ScanResultsPage = () => {
   );
 };
 
-// Scan Page Component
+// Scan Page Component - Premium Enterprise Style
 const ScanPage = () => {
   const [url, setUrl] = useState("");
   const [tool, setTool] = useState("axe-core");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState(""); // "success" or "error"
+  const [messageType, setMessageType] = useState("");
   const [apiStatus, setApiStatus] = useState({});
   const navigate = useNavigate();
-  const userId = UserManager.getUserId();
+  const { user } = useAuth();
 
   useEffect(() => {
-    // Fetch external API status on component mount
     fetchApiStatus();
   }, []);
 
@@ -1036,7 +1604,7 @@ const ScanPage = () => {
       const response = await axios.get(`${API}/external-apis/status`);
       setApiStatus(response.data);
     } catch (error) {
-      // Error already handled by fetch function
+      // Silent fail
     }
   };
 
@@ -1044,27 +1612,36 @@ const ScanPage = () => {
     e.preventDefault();
     if (!url.trim()) return;
 
+    // Check if user can scan
+    if (user?.scans_remaining === 0) {
+      setMessage("You've reached your monthly scan limit. Upgrade to Pro for unlimited scans.");
+      setMessageType("error");
+      return;
+    }
+
     setLoading(true);
     setMessage("");
 
     try {
       const response = await axios.post(`${API}/scans`, {
         url: url.trim(),
-        tool: tool,
-        user_id: userId
+        tool: tool
       });
 
-      setMessage("Scan started successfully! Redirecting to results page...");
+      setMessage("Scan started successfully! Redirecting...");
       setMessageType("success");
       setUrl("");
 
-      // Redirect to results page after a brief delay
       setTimeout(() => {
         navigate(`/scan-results/${response.data.id}`);
       }, 1500);
 
     } catch (error) {
-      setMessage("Failed to start scan. Please check the URL and try again.");
+      if (error.response?.status === 403) {
+        setMessage(error.response.data.detail || "Scan limit exceeded. Upgrade to Pro for unlimited scans.");
+      } else {
+        setMessage("Failed to start scan. Please check the URL and try again.");
+      }
       setMessageType("error");
     } finally {
       setLoading(false);
@@ -1074,7 +1651,7 @@ const ScanPage = () => {
   const getToolDescription = (toolName) => {
     switch (toolName) {
       case "axe-core":
-        return "Free, comprehensive accessibility testing using headless browser automation";
+        return "Industry-leading open-source accessibility engine with comprehensive WCAG coverage";
       case "wave":
         return "WebAIM's WAVE API for detailed accessibility evaluation";
       case "equalweb":
@@ -1095,126 +1672,156 @@ const ScanPage = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 max-w-4xl">
-      <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
-        <h2 className="text-3xl font-bold text-gray-800 mb-6">Run Accessibility Scan</h2>
-        <p className="text-gray-600 mb-6">
-          Enter a website URL and select your preferred accessibility scanning tool.
-        </p>
-        
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="url" className="block text-sm font-medium text-gray-700 mb-2">
-              Website URL
-            </label>
-            <input
-              type="url"
-              id="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.com"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-              required
-              disabled={loading}
-            />
-          </div>
+    <div className="min-h-[calc(100vh-73px)] bg-slate-950 py-8 px-4">
+      <div className="max-w-3xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2">New Accessibility Scan</h1>
+          <p className="text-slate-400">
+            Enter a URL to scan for accessibility issues
+            {user?.plan === 'free' && (
+              <span className="text-slate-500"> • {user?.scans_remaining} scans remaining</span>
+            )}
+          </p>
+        </div>
 
-          <div>
-            <label htmlFor="tool" className="block text-sm font-medium text-gray-700 mb-3">
-              Scanning Tool
-            </label>
-            <div className="space-y-3">
-              {["axe-core", "wave", "equalweb", "accessibe"].map((toolOption) => {
-                const toolStatus = getToolStatus(toolOption);
-                const isDisabled = !toolStatus.available && toolOption !== "axe-core";
-                
-                return (
-                  <div key={toolOption} className="flex items-start space-x-3">
-                    <input
-                      type="radio"
-                      id={toolOption}
-                      name="tool"
-                      value={toolOption}
-                      checked={tool === toolOption}
-                      onChange={(e) => setTool(e.target.value)}
-                      disabled={loading || isDisabled}
-                      className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                    />
-                    <label htmlFor={toolOption} className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <span className={`font-medium ${isDisabled ? 'text-gray-400' : 'text-gray-900'}`}>
-                              {toolOption === "axe-core" ? "axe-core" : toolOption.toUpperCase()}
+        {/* Scan Form */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* URL Input */}
+            <div>
+              <label htmlFor="url" className="block text-sm font-medium text-slate-300 mb-2">
+                Website URL
+              </label>
+              <input
+                type="url"
+                id="url"
+                data-testid="scan-url-input"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://example.com"
+                className="w-full px-4 py-4 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all text-lg"
+                required
+                disabled={loading}
+              />
+            </div>
+
+            {/* Tool Selection */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-3">
+                Scanning Engine
+              </label>
+              <div className="space-y-3">
+                {["axe-core", "wave", "equalweb", "accessibe"].map((toolOption) => {
+                  const toolStatus = getToolStatus(toolOption);
+                  const isDisabled = !toolStatus.available && toolOption !== "axe-core";
+                  
+                  return (
+                    <label
+                      key={toolOption}
+                      className={`flex items-start space-x-4 p-4 rounded-xl border transition-all cursor-pointer ${
+                        tool === toolOption && !isDisabled
+                          ? 'bg-emerald-500/10 border-emerald-500/50'
+                          : isDisabled
+                            ? 'bg-slate-800/50 border-slate-700/50 opacity-50 cursor-not-allowed'
+                            : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="tool"
+                        value={toolOption}
+                        checked={tool === toolOption}
+                        onChange={(e) => setTool(e.target.value)}
+                        disabled={loading || isDisabled}
+                        className="mt-1 h-4 w-4 text-emerald-500 focus:ring-emerald-500 border-slate-600 bg-slate-700"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <span className={`font-medium ${isDisabled ? 'text-slate-500' : 'text-white'}`}>
+                            {toolOption === "axe-core" ? "axe-core" : toolOption.toUpperCase()}
+                          </span>
+                          {toolOption === "axe-core" && (
+                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-500/20 text-emerald-400">
+                              Recommended
                             </span>
-                            {toolOption === "axe-core" && (
-                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                Free
-                              </span>
-                            )}
-                            {toolStatus.status === "ready" && toolOption !== "axe-core" && (
-                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                Ready
-                              </span>
-                            )}
-                            {toolStatus.status === "api_key_required" && (
-                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                                API Key Required
-                              </span>
-                            )}
-                          </div>
-                          <p className={`text-sm mt-1 ${isDisabled ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {getToolDescription(toolOption)}
-                          </p>
+                          )}
                           {isDisabled && (
-                            <p className="text-xs text-red-600 mt-1">
-                              Configure API key in backend environment to enable this tool
-                            </p>
+                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-slate-700 text-slate-400">
+                              API Key Required
+                            </span>
                           )}
                         </div>
+                        <p className={`text-sm mt-1 ${isDisabled ? 'text-slate-600' : 'text-slate-400'}`}>
+                          {getToolDescription(toolOption)}
+                        </p>
                       </div>
                     </label>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              data-testid="scan-submit-btn"
+              disabled={loading || !url.trim() || user?.scans_remaining === 0}
+              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-slate-600 disabled:to-slate-600 text-white font-semibold py-4 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25 disabled:shadow-none flex items-center justify-center"
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Starting Scan...
+                </>
+              ) : (
+                <>
+                  <Zap className="w-5 h-5 mr-2" />
+                  Run Accessibility Scan
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Messages */}
+          {message && (
+            <div className={`mt-6 p-4 rounded-xl ${
+              messageType === "success" 
+                ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" 
+                : "bg-red-500/10 border border-red-500/20 text-red-400"
+            }`}>
+              {message}
+              {messageType === "error" && user?.plan === 'free' && (
+                <Link to="/pricing" className="block mt-2 text-emerald-400 hover:text-emerald-300 font-medium">
+                  Upgrade to Pro →
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Info Panel */}
+        <div className="mt-8 grid md:grid-cols-2 gap-6">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <div className="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-400 mb-4">
+              <Shield className="w-5 h-5" />
+            </div>
+            <h3 className="text-white font-semibold mb-2">WCAG 2.1 Compliance</h3>
+            <p className="text-slate-400 text-sm">
+              Tests against Level A and AA guidelines, covering color contrast, keyboard navigation, ARIA, and more.
+            </p>
           </div>
-
-          <button
-            type="submit"
-            disabled={loading || !url.trim()}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            {loading ? "Starting Scan..." : "Run Accessibility Scan"}
-          </button>
-        </form>
-
-        {message && (
-          <div className={`mt-4 p-4 rounded-lg ${
-            messageType === "success" 
-              ? "bg-green-100 text-green-700 border border-green-200" 
-              : "bg-red-100 text-red-700 border border-red-200"
-          }`}>
-            {message}
-          </div>
-        )}
-
-        {/* Tool Information Panel */}
-        <div className="mt-8 bg-gray-50 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">About Accessibility Scanning Tools</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-lg p-4 border">
-              <h4 className="font-semibold text-gray-800 mb-2">axe-core (Recommended)</h4>
-              <p className="text-sm text-gray-600">
-                Free, open-source accessibility testing engine. Provides comprehensive WCAG compliance checking with detailed violation reports.
-              </p>
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <div className="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-400 mb-4">
+              <FileText className="w-5 h-5" />
             </div>
-            <div className="bg-white rounded-lg p-4 border">
-              <h4 className="font-semibold text-gray-800 mb-2">External APIs</h4>
-              <p className="text-sm text-gray-600">
-                Professional accessibility scanning services like WAVE, EqualWeb, and AccessiBe offer additional features and compliance reporting.
-              </p>
-            </div>
+            <h3 className="text-white font-semibold mb-2">Detailed Reports</h3>
+            <p className="text-slate-400 text-sm">
+              Get visual evidence, code snippets, and step-by-step remediation guides for every issue found.
+            </p>
           </div>
         </div>
       </div>
@@ -1222,187 +1829,299 @@ const ScanPage = () => {
   );
 };
 
-// Dashboard Component (existing home page)
+// Dashboard Component - Premium Enterprise Style
 const Dashboard = () => {
   const [scans, setScans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const navigate = useNavigate();
-  const userId = UserManager.getUserId();
+  const { user, isAuthenticated } = useAuth();
 
   const fetchScans = async () => {
     try {
-      // Get all scans for overview, but we could filter by user if needed
       const response = await axios.get(`${API}/scans`);
       setScans(response.data);
     } catch (error) {
-      setError("Failed to fetch scan results");
+      if (error.response?.status === 401) {
+        // Not authenticated - that's OK for the public dashboard
+      } else {
+        setError("Failed to fetch scan results");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchScans();
-    
-    // Auto-refresh every 5 seconds for pending scans
-    const interval = setInterval(fetchScans, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    if (isAuthenticated) {
+      fetchScans();
+      const interval = setInterval(fetchScans, 5000);
+      return () => clearInterval(interval);
+    } else {
+      setLoading(false);
+    }
+  }, [isAuthenticated]);
 
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed':
-        return 'text-green-600 bg-green-100';
+        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
       case 'error':
-        return 'text-red-600 bg-red-100';
+        return 'bg-red-500/20 text-red-400 border-red-500/30';
       case 'pending':
-        return 'text-yellow-600 bg-yellow-100';
+        return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
       default:
-        return 'text-gray-600 bg-gray-100';
+        return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
     }
   };
 
   const getScoreColor = (score) => {
-    if (score >= 80) return 'text-green-600';
-    if (score >= 60) return 'text-yellow-600';
-    return 'text-red-600';
+    if (score >= 80) return 'text-emerald-400';
+    if (score >= 60) return 'text-amber-400';
+    return 'text-red-400';
   };
 
+  const getScoreBg = (score) => {
+    if (score >= 80) return 'bg-emerald-500/20';
+    if (score >= 60) return 'bg-amber-500/20';
+    return 'bg-red-500/20';
+  };
+
+  // Landing page for non-authenticated users
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-[calc(100vh-73px)] bg-slate-950">
+        {/* Hero Section */}
+        <div className="pt-20 pb-16 px-4">
+          <div className="max-w-4xl mx-auto text-center">
+            <div className="inline-flex items-center px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400 text-sm font-medium mb-8">
+              <CheckCircle className="w-4 h-4 mr-2" />
+              WCAG 2.1 AA Compliance Testing
+            </div>
+            <h1 className="text-5xl sm:text-6xl font-bold text-white mb-6 leading-tight">
+              Website Accessibility<br />
+              <span className="bg-gradient-to-r from-emerald-400 to-teal-400 text-transparent bg-clip-text">
+                Made Simple
+              </span>
+            </h1>
+            <p className="text-xl text-slate-400 mb-10 max-w-2xl mx-auto">
+              Scan any website for accessibility issues in seconds. Get actionable insights and detailed remediation guidance powered by industry-leading testing engines.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link
+                to="/signup"
+                data-testid="hero-cta-signup"
+                className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold py-4 px-8 rounded-xl transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center"
+              >
+                Start Free Trial
+                <ChevronRight className="w-5 h-5 ml-2" />
+              </Link>
+              <Link
+                to="/pricing"
+                data-testid="hero-cta-pricing"
+                className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-white font-semibold py-4 px-8 rounded-xl transition-all flex items-center justify-center"
+              >
+                View Pricing
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Features Grid */}
+        <div className="max-w-6xl mx-auto px-4 pb-20">
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                icon: <Zap className="w-6 h-6" />,
+                title: "Lightning Fast",
+                description: "Get comprehensive accessibility reports in under 30 seconds using headless browser technology.",
+              },
+              {
+                icon: <FileText className="w-6 h-6" />,
+                title: "Detailed Reports",
+                description: "PDF and JSON exports with visual evidence, WCAG references, and step-by-step remediation guides.",
+              },
+              {
+                icon: <BarChart3 className="w-6 h-6" />,
+                title: "Actionable Insights",
+                description: "Clear prioritization of issues by impact level with specific code-level fix suggestions.",
+              },
+            ].map((feature, index) => (
+              <div
+                key={index}
+                className="bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-all"
+              >
+                <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400 mb-4">
+                  {feature.icon}
+                </div>
+                <h3 className="text-lg font-semibold text-white mb-2">{feature.title}</h3>
+                <p className="text-slate-400 text-sm">{feature.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Trust Section */}
+        <div className="border-t border-slate-800 bg-slate-900/50">
+          <div className="max-w-4xl mx-auto px-4 py-12 text-center">
+            <p className="text-slate-500 text-sm mb-4">Powered by trusted accessibility engines</p>
+            <div className="flex items-center justify-center space-x-8 text-slate-400">
+              <span className="font-mono text-lg">axe-core</span>
+              <span className="text-slate-700">|</span>
+              <span className="font-mono text-lg">WAVE</span>
+              <span className="text-slate-700">|</span>
+              <span className="font-mono text-lg">WCAG 2.1</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Dashboard for authenticated users
   if (loading) {
     return (
-      <div className="container mx-auto px-4 max-w-4xl">
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading scans...</p>
+      <div className="min-h-[calc(100vh-73px)] bg-slate-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-400">Loading your dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 max-w-4xl">
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold text-gray-800 mb-4">
-          Accessibility Scanner Dashboard
-        </h1>
-        <p className="text-lg text-gray-600 mb-6">
-          Monitor website accessibility scans and compliance reports
-        </p>
-        <div className="flex justify-center space-x-4">
+    <div className="min-h-[calc(100vh-73px)] bg-slate-950 py-8 px-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Welcome Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2">
+            Welcome back, {user?.full_name || user?.email?.split('@')[0]}
+          </h1>
+          <p className="text-slate-400">
+            {user?.plan === 'pro' 
+              ? "You have unlimited scans on the Pro plan." 
+              : `You have ${user?.scans_remaining} scans remaining this month.`
+            }
+          </p>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <div className="text-slate-400 text-sm mb-1">Total Scans</div>
+            <div className="text-3xl font-bold text-white">{scans.length}</div>
+          </div>
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <div className="text-slate-400 text-sm mb-1">Scans This Month</div>
+            <div className="text-3xl font-bold text-white">{user?.scans_used_this_month || 0}</div>
+          </div>
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <div className="text-slate-400 text-sm mb-1">Plan</div>
+            <div className="flex items-center space-x-2">
+              <span className="text-3xl font-bold text-white capitalize">{user?.plan}</span>
+              {user?.plan === 'free' && (
+                <Link 
+                  to="/pricing" 
+                  className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full hover:bg-emerald-500/30 transition-colors"
+                >
+                  Upgrade
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="flex flex-wrap gap-4 mb-8">
           <Link
             to="/scan"
-            className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+            data-testid="dashboard-new-scan"
+            className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25 flex items-center"
           >
-            Run New Scan
+            <Zap className="w-5 h-5 mr-2" />
+            New Scan
           </Link>
           <Link
             to="/my-scans"
-            className="inline-block bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+            data-testid="dashboard-my-scans"
+            className="bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-xl transition-all flex items-center"
           >
-            View My Scans
+            <BarChart3 className="w-5 h-5 mr-2" />
+            View All Scans
           </Link>
         </div>
-      </div>
 
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
-        </div>
-      )}
-
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Recent Scans (All Users)</h2>
-        {scans.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-8 text-center">
-            <p className="text-gray-500">No scans yet. Run your first accessibility scan!</p>
+        {/* Recent Scans */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-800">
+            <h2 className="text-lg font-semibold text-white">Recent Scans</h2>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {scans.slice(0, 10).map((scan) => (
-              <div key={scan.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-800 break-all">{scan.url}</h3>
-                    <p className="text-sm text-gray-500">
-                      {new Date(scan.createdAt).toLocaleString()}
-                    </p>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <p className="text-sm text-gray-500">
-                        Tool: {scan.tool || "axe-core"}
-                      </p>
-                      {scan.user_id === userId && (
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                          Your Scan
-                        </span>
-                      )}
+
+          {error && (
+            <div className="p-6 text-center">
+              <p className="text-red-400">{error}</p>
+            </div>
+          )}
+
+          {scans.length === 0 ? (
+            <div className="p-12 text-center">
+              <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <BarChart3 className="w-8 h-8 text-slate-600" />
+              </div>
+              <h3 className="text-lg font-medium text-white mb-2">No scans yet</h3>
+              <p className="text-slate-400 mb-6">Run your first accessibility scan to get started.</p>
+              <Link
+                to="/scan"
+                className="inline-flex items-center bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                Run Your First Scan
+              </Link>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-800">
+              {scans.slice(0, 5).map((scan) => (
+                <div
+                  key={scan.id}
+                  className="p-6 hover:bg-slate-800/50 transition-colors cursor-pointer"
+                  onClick={() => navigate(`/scan-results/${scan.id}`)}
+                  data-testid={`scan-row-${scan.id}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0 mr-4">
+                      <h3 className="text-white font-medium truncate mb-1">{scan.url}</h3>
+                      <div className="flex items-center space-x-4 text-sm text-slate-400">
+                        <span>{new Date(scan.createdAt).toLocaleDateString()}</span>
+                        <span className="text-slate-600">•</span>
+                        <span>{scan.tool || "axe-core"}</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(scan.status)}`}>
-                      {scan.status}
-                    </span>
-                    <button
-                      onClick={() => navigate(`/scan-results/${scan.id}`)}
-                      className="bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
-                    >
-                      View Details
-                    </button>
+                    <div className="flex items-center space-x-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(scan.status)}`}>
+                        {scan.status}
+                      </span>
+                      {scan.score !== null && (
+                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${getScoreBg(scan.score)}`}>
+                          <span className={`text-lg font-bold ${getScoreColor(scan.score)}`}>{scan.score}</span>
+                        </div>
+                      )}
+                      <ChevronRight className="w-5 h-5 text-slate-600" />
+                    </div>
                   </div>
                 </div>
-                
-                {scan.score !== null && (
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">Accessibility Score</span>
-                      <span className={`text-2xl font-bold ${getScoreColor(scan.score)}`}>
-                        {scan.score}/100
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full ${
-                          scan.score >= 80 ? 'bg-green-500' : 
-                          scan.score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                        }`}
-                        style={{ width: `${scan.score}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                )}
+              ))}
+            </div>
+          )}
 
-                {scan.issues && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
-                      <div className="text-lg font-bold text-green-600">
-                        {scan.issues.passed ? scan.issues.passed.length : 0}
-                      </div>
-                      <div className="text-xs text-green-700">Passed</div>
-                    </div>
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
-                      <div className="text-lg font-bold text-red-600">
-                        {scan.issues.failed ? scan.issues.failed.length : 0}
-                      </div>
-                      <div className="text-xs text-red-700">Failed</div>
-                    </div>
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
-                      <div className="text-lg font-bold text-yellow-600">
-                        {scan.issues.incomplete ? scan.issues.incomplete.length : 0}
-                      </div>
-                      <div className="text-xs text-yellow-700">Incomplete</div>
-                    </div>
-                  </div>
-                )}
-
-                {scan.error_message && (
-                  <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
-                    <p className="text-sm text-red-600">{scan.error_message}</p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+          {scans.length > 5 && (
+            <div className="px-6 py-4 border-t border-slate-800 text-center">
+              <Link to="/my-scans" className="text-emerald-400 hover:text-emerald-300 font-medium text-sm">
+                View all {scans.length} scans →
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1410,17 +2129,34 @@ const Dashboard = () => {
 
 function App() {
   return (
-    <div className="min-h-screen bg-gray-100">
-      <BrowserRouter>
-        <Navigation />
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/scan" element={<ScanPage />} />
-          <Route path="/my-scans" element={<MyScansPage />} />
-          <Route path="/scan-results/:id" element={<ScanResultsPage />} />
-        </Routes>
-      </BrowserRouter>
-    </div>
+    <AuthProvider>
+      <div className="min-h-screen bg-slate-950">
+        <BrowserRouter>
+          <Navigation />
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/scan" element={
+              <ProtectedRoute>
+                <ScanPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/my-scans" element={
+              <ProtectedRoute>
+                <MyScansPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/scan-results/:id" element={
+              <ProtectedRoute>
+                <ScanResultsPage />
+              </ProtectedRoute>
+            } />
+          </Routes>
+        </BrowserRouter>
+      </div>
+    </AuthProvider>
   );
 }
 

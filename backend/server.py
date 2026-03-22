@@ -26,7 +26,6 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 import tempfile
-from passlib.context import CryptContext
 from jose import JWTError, jwt
 import stripe
 import calendar
@@ -45,8 +44,23 @@ stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
 STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET')
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing - using bcrypt directly due to passlib compatibility issues
+import bcrypt as bcrypt_lib
+
+def get_password_hash(password: str) -> str:
+    """Hash password using bcrypt"""
+    # bcrypt only uses the first 72 bytes of a password
+    password_bytes = password.encode('utf-8')[:72]
+    salt = bcrypt_lib.gensalt()
+    hashed = bcrypt_lib.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify password against hash"""
+    password_bytes = plain_password.encode('utf-8')[:72]
+    hashed_bytes = hashed_password.encode('utf-8')
+    return bcrypt_lib.checkpw(password_bytes, hashed_bytes)
 security = HTTPBearer()
 
 # MongoDB connection
@@ -174,16 +188,6 @@ class ScanRequestUpdate(BaseModel):
 
 
 # Authentication utilities
-def verify_password(plain_password, hashed_password):
-    """Verify password against hash"""
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def get_password_hash(password):
-    """Hash password"""
-    return pwd_context.hash(password)
-
-
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT token"""
     to_encode = data.copy()
@@ -289,7 +293,12 @@ async def reset_monthly_scan_counts():
 
 # Stripe utilities
 def create_stripe_customer(email: str, name: Optional[str] = None):
-    """Create Stripe customer"""
+    """Create Stripe customer - returns None if Stripe is not configured"""
+    # Check if Stripe is configured with real keys
+    if not stripe.api_key or stripe.api_key.startswith('sk_test_your'):
+        logging.warning("Stripe not configured - skipping customer creation")
+        return None
+    
     try:
         customer = stripe.Customer.create(
             email=email,
@@ -298,11 +307,18 @@ def create_stripe_customer(email: str, name: Optional[str] = None):
         return customer
     except Exception as e:
         logging.error(f"Failed to create Stripe customer: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create customer")
+        return None  # Don't block signup if Stripe fails
 
 
 def create_stripe_checkout_session(customer_id: str, price_id: str, success_url: str, cancel_url: str):
     """Create Stripe checkout session"""
+    # Check if Stripe is configured
+    if not stripe.api_key or stripe.api_key.startswith('sk_test_your'):
+        raise HTTPException(status_code=503, detail="Payment system not configured. Please contact support.")
+    
+    if not customer_id:
+        raise HTTPException(status_code=400, detail="No payment profile found. Please contact support.")
+    
     try:
         session = stripe.checkout.Session.create(
             customer=customer_id,
@@ -1504,8 +1520,9 @@ async def signup(user_data: UserCreate):
         if existing_user:
             raise HTTPException(status_code=400, detail="Email already registered")
         
-        # Create Stripe customer
+        # Create Stripe customer (may return None if Stripe not configured)
         stripe_customer = create_stripe_customer(user_data.email, user_data.full_name)
+        stripe_customer_id = stripe_customer.id if stripe_customer else None
         
         # Hash password and create user
         hashed_password = get_password_hash(user_data.password)
@@ -1513,7 +1530,7 @@ async def signup(user_data: UserCreate):
             email=user_data.email,
             full_name=user_data.full_name,
             hashed_password=hashed_password,
-            stripe_customer_id=stripe_customer.id,
+            stripe_customer_id=stripe_customer_id,
             current_period_start=datetime.utcnow(),
             current_period_end=datetime.utcnow() + timedelta(days=30)  # Free trial period
         )
