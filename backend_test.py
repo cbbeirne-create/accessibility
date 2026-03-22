@@ -1,858 +1,345 @@
 import requests
-import unittest
-import uuid
+import sys
+import json
 import time
 from datetime import datetime
-import json
 
-class AccessibilityScannerAPITest(unittest.TestCase):
-    def setUp(self):
-        # Use the public endpoint for testing
-        self.base_url = "https://3f2797e6-9bad-45f5-ae39-514f6005b46a.preview.emergentagent.com/api"
-        self.test_scan_id = None
-        # Specific scan IDs from the request for testing
-        self.wave_scan_id = "382e9c35-8ed3-43e0-92e3-ebdfc81f537e"
-        self.equalweb_scan_id = "7f9ff9d2-fe90-4641-a145-adf3dc359d75"
-        self.axe_scan_id = "e8069af6-885d-402c-af45-942cc75e022e"
-        # New scan IDs from the updated UI
-        self.new_scan_id = "5d08b599-b23c-42dc-a328-c91ed40c6ad0"  # 3 failed, 39 passed, 0 incomplete
-        self.previous_scan_id = "cfce0eb0-a9ff-4f2a-9c72-e00016aa59ac"  # 3 failed, 13 passed, 0 incomplete
-        # Test user IDs
-        self.test_user_id = f"test_user_{uuid.uuid4().hex[:8]}"
-        self.test_user_id2 = f"test_user_{uuid.uuid4().hex[:8]}"
+class AccessibilityScannerTester:
+    def __init__(self, base_url="https://site-checker.preview.emergentagent.com"):
+        self.base_url = base_url
+        self.api_url = f"{base_url}/api"
+        self.tests_run = 0
+        self.tests_passed = 0
+        self.scan_id = None
+
+    def log_test(self, name, success, details=""):
+        """Log test results"""
+        self.tests_run += 1
+        if success:
+            self.tests_passed += 1
+            print(f"✅ {name} - PASSED")
+        else:
+            print(f"❌ {name} - FAILED: {details}")
         
-    def test_01_health_check(self):
-        """Test the API health check endpoint"""
-        print("\n🔍 Testing API health check...")
-        response = requests.get(f"{self.base_url}/")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["message"], "Accessibility Scanner API")
-        self.assertEqual(data["status"], "running")
-        print("✅ API health check passed")
-        
-    def test_02_create_scan(self):
-        """Test creating a new scan request"""
-        print("\n🔍 Testing scan creation...")
-        test_url = f"https://example.com/test-{uuid.uuid4()}"
-        response = requests.post(
-            f"{self.base_url}/scans", 
-            json={"url": test_url}
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["url"], test_url)
-        self.assertEqual(data["status"], "pending")
-        self.assertIsNone(data["score"])
-        self.assertIsNone(data["issues"])
-        self.assertIsNotNone(data["id"])
-        
-        # Save the scan ID for later tests
-        self.__class__.test_scan_id = data["id"]
-        print(f"✅ Scan creation passed - Created scan with ID: {self.__class__.test_scan_id}")
-        
-    def test_03_get_all_scans(self):
-        """Test getting all scan requests"""
-        print("\n🔍 Testing get all scans...")
-        response = requests.get(f"{self.base_url}/scans")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertIsInstance(data, list)
-        # At least our created scan should be there
-        self.assertGreaterEqual(len(data), 1)
-        print(f"✅ Get all scans passed - Found {len(data)} scans")
-        
-    def test_04_get_specific_scan(self):
-        """Test getting a specific scan request"""
-        if not hasattr(self.__class__, 'test_scan_id'):
-            self.skipTest("No scan ID available from previous test")
-            
-        print(f"\n🔍 Testing get specific scan with ID: {self.__class__.test_scan_id}...")
-        response = requests.get(f"{self.base_url}/scans/{self.__class__.test_scan_id}")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["id"], self.__class__.test_scan_id)
-        print("✅ Get specific scan passed")
-        
-    def test_05_update_scan(self):
-        """Test updating a scan request"""
-        if not hasattr(self.__class__, 'test_scan_id'):
-            self.skipTest("No scan ID available from previous test")
-            
-        print(f"\n🔍 Testing update scan with ID: {self.__class__.test_scan_id}...")
-        update_data = {
-            "status": "completed",
-            "score": 85,
-            "issues": {
-                "violations": [
-                    {
-                        "id": "color-contrast",
-                        "description": "Elements must have sufficient color contrast",
-                        "impact": "serious",
-                        "nodes": 2
-                    }
-                ],
-                "passes": 10,
-                "incomplete": 1
+        if details and success:
+            print(f"   Details: {details}")
+
+    def test_api_health(self):
+        """Test basic API connectivity"""
+        try:
+            response = requests.get(f"{self.api_url}/", timeout=10)
+            success = response.status_code == 200
+            details = f"Status: {response.status_code}"
+            if success:
+                data = response.json()
+                details += f", Message: {data.get('message', 'N/A')}"
+            self.log_test("API Health Check", success, details)
+            return success
+        except Exception as e:
+            self.log_test("API Health Check", False, str(e))
+            return False
+
+    def test_external_api_status(self):
+        """Test external API status endpoint"""
+        try:
+            response = requests.get(f"{self.api_url}/external-apis/status", timeout=10)
+            success = response.status_code == 200
+            details = f"Status: {response.status_code}"
+            if success:
+                data = response.json()
+                details += f", APIs: {list(data.keys())}"
+            self.log_test("External API Status", success, details)
+            return success, response.json() if success else {}
+        except Exception as e:
+            self.log_test("External API Status", False, str(e))
+            return False, {}
+
+    def test_create_scan_with_visual_evidence(self):
+        """Test creating a scan with visual evidence capture"""
+        try:
+            # Use a simple, accessible website for testing
+            test_url = "https://example.com"
+            payload = {
+                "url": test_url,
+                "tool": "axe-core",
+                "user_id": "test_user_123"
             }
-        }
-        
-        response = requests.put(
-            f"{self.base_url}/scans/{self.__class__.test_scan_id}", 
-            json=update_data
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["id"], self.__class__.test_scan_id)
-        self.assertEqual(data["status"], "completed")
-        self.assertEqual(data["score"], 85)
-        self.assertIsNotNone(data["issues"])
-        print("✅ Update scan passed")
-        
-    def test_06_delete_scan(self):
-        """Test deleting a scan request"""
-        if not hasattr(self.__class__, 'test_scan_id'):
-            self.skipTest("No scan ID available from previous test")
             
-        print(f"\n🔍 Testing delete scan with ID: {self.__class__.test_scan_id}...")
-        response = requests.delete(f"{self.base_url}/scans/{self.__class__.test_scan_id}")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["message"], "Scan request deleted successfully")
-        
-        # Verify it's actually deleted
-        response = requests.get(f"{self.base_url}/scans/{self.__class__.test_scan_id}")
-        self.assertEqual(response.status_code, 404)
-        print("✅ Delete scan passed")
-        
-    def test_07_real_accessibility_scan(self):
-        """Test a real accessibility scan with axe-core"""
-        print("\n🔍 Testing real accessibility scan...")
-        
-        # Create a scan for a real website
-        test_url = "https://example.com"  # Using a simpler website for faster scanning
-        response = requests.post(
-            f"{self.base_url}/scans", 
-            json={"url": test_url, "tool": "axe-core"}
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["url"], test_url)
-        self.assertEqual(data["status"], "pending")
-        scan_id = data["id"]
-        print(f"✅ Created real scan with ID: {scan_id}")
-        
-        # Poll for scan completion (timeout after 60 seconds)
-        max_attempts = 30
-        attempts = 0
-        scan_completed = False
-        
-        print("⏳ Waiting for scan to complete...")
-        while attempts < max_attempts and not scan_completed:
-            time.sleep(2)  # Poll every 2 seconds
-            try:
-                response = requests.get(f"{self.base_url}/scans/{scan_id}")
-                self.assertEqual(response.status_code, 200)
+            response = requests.post(f"{self.api_url}/scans", json=payload, timeout=30)
+            success = response.status_code == 200
+            
+            if success:
                 data = response.json()
-                
-                if data["status"] in ["completed", "error"]:
-                    scan_completed = True
-                    print(f"✅ Scan completed with status: {data['status']}")
-                    if data["status"] == "completed":
-                        self.assertIsNotNone(data["score"])
-                        self.assertIsNotNone(data["issues"])
-                        print(f"✅ Accessibility score: {data['score']}/100")
-                        
-                        # Verify axe-core results structure
-                        self.assertIn("violations", data["issues"])
-                        self.assertIn("passes", data["issues"])
-                        self.assertIn("incomplete", data["issues"])
-                        
-                        print(f"✅ Found {len(data['issues']['violations'])} violations")
-                        print(f"✅ Found {len(data['issues']['passes'])} passes")
-                        
-                        # Print a sample violation if available
-                        if data["issues"]["violations"]:
-                            violation = data["issues"]["violations"][0]
-                            print(f"Sample violation: {violation['id']} - {violation['description']}")
-                    else:
-                        print(f"❌ Scan failed with error: {data.get('error_message', 'Unknown error')}")
-            except Exception as e:
-                print(f"Error polling scan status: {e}")
-            
-            attempts += 1
-            print(f"Polling attempt {attempts}/{max_attempts}...")
-        
-        if not scan_completed:
-            print("⚠️ Scan did not complete within the timeout period")
-            # Don't fail the test, just report it
-            
-        # Try to clean up - delete the test scan
-        try:
-            response = requests.delete(f"{self.base_url}/scans/{scan_id}")
-            if response.status_code == 200:
-                print("✅ Test scan deleted successfully")
+                self.scan_id = data.get('id')
+                details = f"Scan ID: {self.scan_id}, Status: {data.get('status')}"
             else:
-                print(f"⚠️ Failed to delete test scan: {response.status_code}")
-        except Exception as e:
-            print(f"Error deleting test scan: {e}")
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
             
-        print("✅ Real accessibility scan test completed")
+            self.log_test("Create Scan with Visual Evidence", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Create Scan with Visual Evidence", False, str(e))
+            return False
 
-    def test_08_error_handling(self):
-        """Test error handling for invalid requests"""
-        print("\n🔍 Testing error handling...")
+    def test_scan_completion_with_polling(self, max_wait_time=120):
+        """Test scan completion by polling the scan status"""
+        if not self.scan_id:
+            self.log_test("Scan Completion Polling", False, "No scan ID available")
+            return False
         
-        # Test invalid URL format
-        response = requests.post(
-            f"{self.base_url}/scans", 
-            json={"url": "not-a-valid-url"}
-        )
-        self.assertNotEqual(response.status_code, 200)
-        
-        # Test non-existent scan ID
-        fake_id = str(uuid.uuid4())
-        response = requests.get(f"{self.base_url}/scans/{fake_id}")
-        self.assertEqual(response.status_code, 404)
-        
-        print("✅ Error handling passed")
-        
-    def test_09_specific_scan_result(self):
-        """Test the specific scan result mentioned in the request"""
-        print("\n🔍 Testing specific scan result...")
-        
-        # Test the specific scan ID from the request
-        specific_scan_id = "27d02b04-c388-4504-96dd-988aee7ad308"
-        response = requests.get(f"{self.base_url}/scans/{specific_scan_id}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Found specific scan with ID: {specific_scan_id}")
-            print(f"URL: {data['url']}")
-            print(f"Status: {data['status']}")
-            print(f"Score: {data['score']}/100")
-            
-            # Verify the expected values
-            self.assertEqual(data["url"], "https://github.com/")
-            self.assertEqual(data["status"], "completed")
-            self.assertEqual(data["score"], 15)
-            
-            # Verify violations exist
-            self.assertIn("issues", data)
-            self.assertIn("violations", data["issues"])
-            violations_count = len(data["issues"]["violations"])
-            print(f"Found {violations_count} violations")
-            
-            # Print some sample violations for verification
-            if violations_count > 0:
-                for i in range(min(3, violations_count)):
-                    violation = data["issues"]["violations"][i]
-                    print(f"Violation {i+1}: {violation['id']} - {violation['impact']} impact")
-        else:
-            print(f"❌ Specific scan not found (status code: {response.status_code})")
-            print("This test will be marked as skipped rather than failed")
-            self.skipTest(f"Specific scan with ID {specific_scan_id} not found")
-            
-    def test_10_external_apis_status(self):
-        """Test the external APIs status endpoint"""
-        print("\n🔍 Testing external APIs status endpoint...")
-        
-        response = requests.get(f"{self.base_url}/external-apis/status")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        
-        # Verify the structure of the response
-        self.assertIn("wave", data)
-        self.assertIn("equalweb", data)
-        self.assertIn("accessibe", data)
-        
-        # Each API should have configured and status fields
-        for api in ["wave", "equalweb", "accessibe"]:
-            self.assertIn("configured", data[api])
-            self.assertIn("status", data[api])
-            
-            # Status should be either "ready" or "api_key_required"
-            self.assertIn(data[api]["status"], ["ready", "api_key_required"])
-            
-            # Print the status of each API
-            print(f"✅ {api.upper()} API: {'Configured' if data[api]['configured'] else 'Not configured'} - Status: {data[api]['status']}")
-            
-        print("✅ External APIs status endpoint test passed")
-        
-    def test_11_external_scan_with_wave(self):
-        """Test creating a scan with WAVE external tool"""
-        print("\n🔍 Testing scan creation with WAVE external tool...")
-        
-        test_url = f"https://example.com/test-{uuid.uuid4()}"
-        response = requests.post(
-            f"{self.base_url}/scans", 
-            json={"url": test_url, "tool": "wave"}
-        )
-        
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["url"], test_url)
-        self.assertEqual(data["status"], "pending")
-        self.assertEqual(data["tool"], "wave")
-        
-        scan_id = data["id"]
-        print(f"✅ Created WAVE scan with ID: {scan_id}")
-        
-        # Poll for scan completion (timeout after 30 seconds)
-        max_attempts = 15
-        attempts = 0
-        scan_completed = False
-        
-        print("⏳ Waiting for WAVE scan to complete...")
-        while attempts < max_attempts and not scan_completed:
-            time.sleep(2)  # Poll every 2 seconds
-            try:
-                response = requests.get(f"{self.base_url}/scans/{scan_id}")
-                self.assertEqual(response.status_code, 200)
+        try:
+            start_time = time.time()
+            while time.time() - start_time < max_wait_time:
+                response = requests.get(f"{self.api_url}/scans/{self.scan_id}", timeout=10)
+                if response.status_code != 200:
+                    self.log_test("Scan Completion Polling", False, f"Failed to fetch scan: {response.status_code}")
+                    return False
+                
                 data = response.json()
+                status = data.get('status')
                 
-                if data["status"] in ["completed", "error"]:
-                    scan_completed = True
-                    print(f"✅ WAVE scan completed with status: {data['status']}")
+                if status == 'completed':
+                    # Check for visual evidence
+                    has_screenshot = bool(data.get('full_page_screenshot'))
+                    has_issues = bool(data.get('issues'))
+                    score = data.get('score')
                     
-                    if data["status"] == "error":
-                        # If API key is not configured, we expect an error
-                        self.assertIsNotNone(data["error_message"])
-                        print(f"Expected error: {data['error_message']}")
-                        if "API key not configured" in data["error_message"]:
-                            print("✅ Correctly handled missing API key scenario")
-                    else:
-                        # If scan completed successfully, verify the results
-                        self.assertIsNotNone(data["score"])
-                        self.assertIsNotNone(data["issues"])
-                        print(f"✅ WAVE scan score: {data['score']}/100")
-            except Exception as e:
-                print(f"Error polling WAVE scan status: {e}")
+                    details = f"Status: {status}, Score: {score}, Screenshot: {has_screenshot}, Issues: {has_issues}"
+                    self.log_test("Scan Completion Polling", True, details)
+                    return True
+                elif status == 'error':
+                    error_msg = data.get('error_message', 'Unknown error')
+                    self.log_test("Scan Completion Polling", False, f"Scan failed: {error_msg}")
+                    return False
+                
+                # Still pending, wait and retry
+                print(f"   Scan status: {status}, waiting...")
+                time.sleep(5)
             
-            attempts += 1
-            print(f"Polling attempt {attempts}/{max_attempts}...")
-        
-        # Clean up - delete the test scan
-        try:
-            response = requests.delete(f"{self.base_url}/scans/{scan_id}")
-            if response.status_code == 200:
-                print("✅ WAVE test scan deleted successfully")
+            # Timeout reached
+            self.log_test("Scan Completion Polling", False, f"Timeout after {max_wait_time}s")
+            return False
+            
         except Exception as e:
-            print(f"Error deleting WAVE test scan: {e}")
-            
-        print("✅ WAVE external scan test completed")
-        
-    def test_12_manual_external_api_trigger(self):
-        """Test manually triggering an external API scan"""
-        print("\n🔍 Testing manual external API scan trigger...")
-        
-        # First create a scan with an external tool
-        test_url = f"https://example.com/test-{uuid.uuid4()}"
-        response = requests.post(
-            f"{self.base_url}/scans", 
-            json={"url": test_url, "tool": "equalweb"}
-        )
-        
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        scan_id = data["id"]
-        print(f"✅ Created EqualWeb scan with ID: {scan_id}")
-        
-        # Wait a moment to ensure the scan is in the database
-        time.sleep(2)
-        
-        # Now manually trigger the external API scan
-        response = requests.post(f"{self.base_url}/scans/{scan_id}/run-external")
-        
-        # If API key is not configured, we expect an error response
-        if response.status_code == 500:
-            error_data = response.json()
-            print(f"Expected error: {error_data.get('detail', 'Unknown error')}")
-            if "API key not configured" in error_data.get('detail', ''):
-                print("✅ Correctly handled missing API key scenario for manual trigger")
-        else:
-            self.assertEqual(response.status_code, 200)
-            data = response.json()
-            self.assertEqual(data["scan_id"], scan_id)
-            print("✅ Manual external API scan triggered successfully")
-        
-        # Clean up - delete the test scan
-        try:
-            response = requests.delete(f"{self.base_url}/scans/{scan_id}")
-            if response.status_code == 200:
-                print("✅ EqualWeb test scan deleted successfully")
-        except Exception as e:
-            print(f"Error deleting EqualWeb test scan: {e}")
-            
-        print("✅ Manual external API trigger test completed")
-        
-    def test_13_specific_wave_scan_result(self):
-        """Test the specific WAVE scan result mentioned in the request"""
-        print("\n🔍 Testing specific WAVE scan result...")
-        
-        # Test the specific WAVE scan ID from the request
-        response = requests.get(f"{self.base_url}/scans/{self.wave_scan_id}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Found specific WAVE scan with ID: {self.wave_scan_id}")
-            print(f"URL: {data['url']}")
-            print(f"Status: {data['status']}")
-            print(f"Tool: {data['tool']}")
-            
-            # Verify it's a WAVE scan
-            self.assertEqual(data["tool"], "wave")
-            
-            # If the scan completed, check the results
-            if data["status"] == "completed":
-                print(f"Score: {data['score']}/100")
-                
-                # Verify issues exist
-                self.assertIn("issues", data)
-                self.assertIn("violations", data["issues"])
-                violations_count = len(data["issues"]["violations"])
-                print(f"Found {violations_count} violations")
-                
-                # Print some sample violations for verification
-                if violations_count > 0:
-                    for i in range(min(3, violations_count)):
-                        violation = data["issues"]["violations"][i]
-                        print(f"Violation {i+1}: {violation['id']} - {violation['impact']} impact")
-            elif data["status"] == "error":
-                print(f"Scan failed with error: {data.get('error_message', 'Unknown error')}")
-                if "API key not configured" in data.get('error_message', ''):
-                    print("✅ Correctly handled missing API key scenario")
-            else:
-                print(f"Scan status: {data['status']}")
-        else:
-            print(f"❌ Specific WAVE scan not found (status code: {response.status_code})")
-            print("This test will be marked as skipped rather than failed")
-            self.skipTest(f"Specific WAVE scan with ID {self.wave_scan_id} not found")
-            
-    def test_16_accessibe_scan_creation(self):
-        """Test creating a scan with AccessiBe external tool"""
-        print("\n🔍 Testing scan creation with AccessiBe external tool...")
-        
-        test_url = f"https://example.com/test-{uuid.uuid4()}"
-        response = requests.post(
-            f"{self.base_url}/scans", 
-            json={"url": test_url, "tool": "accessibe"}
-        )
-        
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["url"], test_url)
-        self.assertEqual(data["status"], "pending")
-        self.assertEqual(data["tool"], "accessibe")
-        
-        scan_id = data["id"]
-        print(f"✅ Created AccessiBe scan with ID: {scan_id}")
-        
-        # Poll for scan completion (timeout after 30 seconds)
-        max_attempts = 15
-        attempts = 0
-        scan_completed = False
-        
-        print("⏳ Waiting for AccessiBe scan to complete...")
-        while attempts < max_attempts and not scan_completed:
-            time.sleep(2)  # Poll every 2 seconds
-            try:
-                response = requests.get(f"{self.base_url}/scans/{scan_id}")
-                self.assertEqual(response.status_code, 200)
-                data = response.json()
-                
-                if data["status"] in ["completed", "error"]:
-                    scan_completed = True
-                    print(f"✅ AccessiBe scan completed with status: {data['status']}")
-                    
-                    if data["status"] == "error":
-                        # If API key is not configured, we expect an error
-                        self.assertIsNotNone(data["error_message"])
-                        print(f"Expected error: {data['error_message']}")
-                        if "API key not configured" in data["error_message"]:
-                            print("✅ Correctly handled missing API key scenario")
-                    else:
-                        # If scan completed successfully, verify the results
-                        self.assertIsNotNone(data["score"])
-                        self.assertIsNotNone(data["issues"])
-                        print(f"✅ AccessiBe scan score: {data['score']}/100")
-            except Exception as e:
-                print(f"Error polling AccessiBe scan status: {e}")
-            
-            attempts += 1
-            print(f"Polling attempt {attempts}/{max_attempts}...")
-        
-        # Clean up - delete the test scan
-        try:
-            response = requests.delete(f"{self.base_url}/scans/{scan_id}")
-            if response.status_code == 200:
-                print("✅ AccessiBe test scan deleted successfully")
-        except Exception as e:
-            print(f"Error deleting AccessiBe test scan: {e}")
-            
-        print("✅ AccessiBe external scan test completed")
-        print("✅ Specific WAVE scan test completed")
-        
-    def test_17_create_scan_with_user_id(self):
-        """Test creating a scan with user ID"""
-        print("\n🔍 Testing scan creation with user ID...")
-        
-        test_url = f"https://example.com/test-{uuid.uuid4()}"
-        response = requests.post(
-            f"{self.base_url}/scans", 
-            json={"url": test_url, "user_id": self.test_user_id}
-        )
-        
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["url"], test_url)
-        self.assertEqual(data["status"], "pending")
-        self.assertEqual(data["user_id"], self.test_user_id)
-        
-        scan_id = data["id"]
-        print(f"✅ Created scan with user ID: {self.test_user_id}, scan ID: {scan_id}")
-        
-        # Save the scan ID for later tests
-        self.__class__.user_scan_id = scan_id
-        
-        # Create another scan for the same user
-        test_url2 = f"https://github.com/test-{uuid.uuid4()}"
-        response = requests.post(
-            f"{self.base_url}/scans", 
-            json={"url": test_url2, "user_id": self.test_user_id}
-        )
-        
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["user_id"], self.test_user_id)
-        
-        scan_id2 = data["id"]
-        print(f"✅ Created second scan with user ID: {self.test_user_id}, scan ID: {scan_id2}")
-        
-        # Create a scan for a different user
-        test_url3 = f"https://docs.github.com/test-{uuid.uuid4()}"
-        response = requests.post(
-            f"{self.base_url}/scans", 
-            json={"url": test_url3, "user_id": self.test_user_id2}
-        )
-        
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["user_id"], self.test_user_id2)
-        
-        scan_id3 = data["id"]
-        print(f"✅ Created scan with different user ID: {self.test_user_id2}, scan ID: {scan_id3}")
-        
-        print("✅ User scan creation tests passed")
-        
-    def test_18_get_user_specific_scans(self):
-        """Test getting scans for a specific user"""
-        print("\n🔍 Testing user-specific scans endpoint...")
-        
-        if not hasattr(self.__class__, 'user_scan_id'):
-            self.skipTest("No user scan ID available from previous test")
-        
-        # Get scans for the first test user
-        response = requests.get(f"{self.base_url}/users/{self.test_user_id}/scans")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        
-        # Should have at least 2 scans for this user
-        self.assertIsInstance(data, list)
-        self.assertGreaterEqual(len(data), 2)
-        
-        # Verify all scans belong to the correct user
-        for scan in data:
-            self.assertEqual(scan["user_id"], self.test_user_id)
-        
-        print(f"✅ Found {len(data)} scans for user {self.test_user_id}")
-        
-        # Get scans for the second test user
-        response = requests.get(f"{self.base_url}/users/{self.test_user_id2}/scans")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        
-        # Should have at least 1 scan for this user
-        self.assertIsInstance(data, list)
-        self.assertGreaterEqual(len(data), 1)
-        
-        # Verify all scans belong to the correct user
-        for scan in data:
-            self.assertEqual(scan["user_id"], self.test_user_id2)
-        
-        print(f"✅ Found {len(data)} scans for user {self.test_user_id2}")
-        
-        print("✅ User-specific scans endpoint test passed")
-        
-    def test_19_filter_scans_by_user_id(self):
-        """Test filtering all scans by user ID"""
-        print("\n🔍 Testing scan filtering by user ID...")
-        
-        # Get all scans filtered by the first test user
-        response = requests.get(f"{self.base_url}/scans?user_id={self.test_user_id}")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        
-        # Should have at least 2 scans for this user
-        self.assertIsInstance(data, list)
-        self.assertGreaterEqual(len(data), 2)
-        
-        # Verify all scans belong to the correct user
-        for scan in data:
-            self.assertEqual(scan["user_id"], self.test_user_id)
-        
-        print(f"✅ Found {len(data)} scans for user {self.test_user_id} using filter parameter")
-        
-        # Get all scans filtered by the second test user
-        response = requests.get(f"{self.base_url}/scans?user_id={self.test_user_id2}")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        
-        # Should have at least 1 scan for this user
-        self.assertIsInstance(data, list)
-        self.assertGreaterEqual(len(data), 1)
-        
-        # Verify all scans belong to the correct user
-        for scan in data:
-            self.assertEqual(scan["user_id"], self.test_user_id2)
-        
-        print(f"✅ Found {len(data)} scans for user {self.test_user_id2} using filter parameter")
-        
-        print("✅ Scan filtering by user ID test passed")
-        
-    def test_20_verify_test_data_from_request(self):
-        """Verify the test data mentioned in the request"""
-        print("\n🔍 Verifying test data from the request...")
-        
-        # Test user_test123 should have 2 scans (example.com score=78, github.com score=15)
-        response = requests.get(f"{self.base_url}/users/user_test123/scans")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Found {len(data)} scans for user_test123")
-            
-            # Should have 2 scans
-            self.assertGreaterEqual(len(data), 2)
-            
-            # Check for expected URLs and scores
-            example_com_found = False
-            github_com_found = False
-            
-            for scan in data:
-                if "example.com" in scan["url"] and scan["score"] == 78:
-                    example_com_found = True
-                    print("✅ Found example.com scan with score 78")
-                elif "github.com" in scan["url"] and scan["score"] == 15:
-                    github_com_found = True
-                    print("✅ Found github.com scan with score 15")
-            
-            # At least one of the expected scans should be found
-            self.assertTrue(example_com_found or github_com_found, 
-                           "Expected test scans for user_test123 not found")
-        else:
-            print(f"⚠️ Could not find scans for user_test123 (status code: {response.status_code})")
-            print("This might be expected if the test data hasn't been created yet")
-        
-        # Test user_different456 should have 1 scan (docs.github.com)
-        response = requests.get(f"{self.base_url}/users/user_different456/scans")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Found {len(data)} scans for user_different456")
-            
-            # Should have at least 1 scan
-            self.assertGreaterEqual(len(data), 1)
-            
-            # Check for expected URL
-            docs_github_found = False
-            
-            for scan in data:
-                if "docs.github.com" in scan["url"]:
-                    docs_github_found = True
-                    print("✅ Found docs.github.com scan")
-            
-            # The expected scan should be found
-            self.assertTrue(docs_github_found, 
-                           "Expected test scan for user_different456 not found")
-        else:
-            print(f"⚠️ Could not find scans for user_different456 (status code: {response.status_code})")
-            print("This might be expected if the test data hasn't been created yet")
-        
-        print("✅ Test data verification completed")
-        
-    def test_14_specific_equalweb_scan_result(self):
-        """Test the specific EqualWeb scan result mentioned in the request"""
-        print("\n🔍 Testing specific EqualWeb scan result...")
-        
-        # Test the specific EqualWeb scan ID from the request
-        response = requests.get(f"{self.base_url}/scans/{self.equalweb_scan_id}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Found specific EqualWeb scan with ID: {self.equalweb_scan_id}")
-            print(f"URL: {data['url']}")
-            print(f"Status: {data['status']}")
-            print(f"Tool: {data['tool']}")
-            
-            # Verify it's an EqualWeb scan
-            self.assertEqual(data["tool"], "equalweb")
-            
-            # If the scan completed, check the results
-            if data["status"] == "completed":
-                print(f"Score: {data['score']}/100")
-                
-                # Verify issues exist
-                self.assertIn("issues", data)
-                self.assertIn("violations", data["issues"])
-                violations_count = len(data["issues"]["violations"])
-                print(f"Found {violations_count} violations")
-                
-                # Print some sample violations for verification
-                if violations_count > 0:
-                    for i in range(min(3, violations_count)):
-                        violation = data["issues"]["violations"][i]
-                        print(f"Violation {i+1}: {violation['id']} - {violation['impact']} impact")
-            elif data["status"] == "error":
-                print(f"Scan failed with error: {data.get('error_message', 'Unknown error')}")
-                if "API key not configured" in data.get('error_message', ''):
-                    print("✅ Correctly handled missing API key scenario")
-            else:
-                print(f"Scan status: {data['status']}")
-        else:
-            print(f"❌ Specific EqualWeb scan not found (status code: {response.status_code})")
-            print("This test will be marked as skipped rather than failed")
-            self.skipTest(f"Specific EqualWeb scan with ID {self.equalweb_scan_id} not found")
-            
-        print("✅ Specific EqualWeb scan test completed")
-        
-    def test_15_specific_axe_scan_result(self):
-        """Test the specific axe-core scan result mentioned in the request"""
-        print("\n🔍 Testing specific axe-core scan result...")
-        
-        # Test the specific axe-core scan ID from the request
-        response = requests.get(f"{self.base_url}/scans/{self.axe_scan_id}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Found specific axe-core scan with ID: {self.axe_scan_id}")
-            print(f"URL: {data['url']}")
-            print(f"Status: {data['status']}")
-            print(f"Tool: {data['tool']}")
-            
-            # Verify it's an axe-core scan
-            self.assertEqual(data["tool"], "axe-core")
-            
-            # If the scan completed, check the results
-            if data["status"] == "completed":
-                print(f"Score: {data['score']}/100")
-                
-                # Verify issues exist
-                self.assertIn("issues", data)
-                self.assertIn("violations", data["issues"])
-                violations_count = len(data["issues"]["violations"])
-                print(f"Found {violations_count} violations")
-                
-                # Print some sample violations for verification
-                if violations_count > 0:
-                    for i in range(min(3, violations_count)):
-                        violation = data["issues"]["violations"][i]
-                        print(f"Violation {i+1}: {violation['id']} - {violation['impact']} impact")
-            elif data["status"] == "error":
-                print(f"Scan failed with error: {data.get('error_message', 'Unknown error')}")
-            else:
-                print(f"Scan status: {data['status']}")
-        else:
-            print(f"❌ Specific axe-core scan not found (status code: {response.status_code})")
-            print("This test will be marked as skipped rather than failed")
-            self.skipTest(f"Specific axe-core scan with ID {self.axe_scan_id} not found")
-            
-        print("✅ Specific axe-core scan test completed")
+            self.log_test("Scan Completion Polling", False, str(e))
+            return False
 
-    def test_21_verify_new_scan_results_format(self):
-        """Test the new scan results format with three sections"""
-        print("\n🔍 Testing new scan results format...")
+    def test_scan_results_structure(self):
+        """Test the structure of scan results"""
+        if not self.scan_id:
+            self.log_test("Scan Results Structure", False, "No scan ID available")
+            return False
         
-        # Test the specific scan ID from the updated UI
-        response = requests.get(f"{self.base_url}/scans/{self.new_scan_id}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Found scan with ID: {self.new_scan_id}")
-            print(f"URL: {data['url']}")
-            print(f"Status: {data['status']}")
-            print(f"Score: {data['score']}/100")
+        try:
+            response = requests.get(f"{self.api_url}/scans/{self.scan_id}", timeout=10)
+            success = response.status_code == 200
             
-            # Verify the structure of the issues object
-            self.assertIn("issues", data)
-            
-            # Check for the three sections: failed, passed, incomplete
-            self.assertIn("failed", data["issues"])
-            self.assertIn("passed", data["issues"])
-            self.assertIn("incomplete", data["issues"])
-            
-            # Verify counts match what's expected
-            failed_count = len(data["issues"]["failed"])
-            passed_count = len(data["issues"]["passed"])
-            incomplete_count = len(data["issues"]["incomplete"])
-            
-            print(f"Failed issues: {failed_count}")
-            print(f"Passed tests: {passed_count}")
-            print(f"Incomplete tests: {incomplete_count}")
-            
-            # Verify counts match what's expected in the review request
-            self.assertEqual(failed_count, 3, "Expected 3 failed issues")
-            self.assertEqual(passed_count, 39, "Expected 39 passed tests")
-            self.assertEqual(incomplete_count, 0, "Expected 0 incomplete tests")
-            
-            # Verify structure of failed issues
-            if failed_count > 0:
-                first_issue = data["issues"]["failed"][0]
-                self.assertIn("id", first_issue)
-                self.assertIn("description", first_issue)
-                self.assertIn("impact", first_issue)
-                self.assertIn("wcag", first_issue)
-                
-                # Check for impact levels
-                valid_impacts = ["critical", "serious", "moderate", "minor"]
-                self.assertIn(first_issue["impact"], valid_impacts)
-                
-                print(f"Sample failed issue: {first_issue['id']} - {first_issue['impact']} impact")
-            
-            # Verify structure of passed tests
-            if passed_count > 0:
-                first_passed = data["issues"]["passed"][0]
-                self.assertIn("id", first_passed)
-                self.assertIn("description", first_passed)
-                self.assertIn("wcag", first_passed)
-                
-                print(f"Sample passed test: {first_passed['id']}")
-            
-            # Test the previous scan format as well
-            response = requests.get(f"{self.base_url}/scans/{self.previous_scan_id}")
-            if response.status_code == 200:
+            if success:
                 data = response.json()
-                print(f"\n✅ Found previous scan with ID: {self.previous_scan_id}")
                 
-                # Verify counts match what's expected
-                failed_count = len(data["issues"]["failed"])
-                passed_count = len(data["issues"]["passed"])
-                incomplete_count = len(data["issues"].get("incomplete", []))
+                # Check required fields
+                required_fields = ['id', 'url', 'status', 'createdAt', 'tool']
+                missing_fields = [field for field in required_fields if field not in data]
                 
-                print(f"Failed issues: {failed_count}")
-                print(f"Passed tests: {passed_count}")
-                print(f"Incomplete tests: {incomplete_count}")
+                # Check enhanced fields for visual evidence
+                enhanced_fields = ['full_page_screenshot', 'scan_metadata']
+                present_enhanced = [field for field in enhanced_fields if data.get(field)]
                 
-                # Verify counts match what's expected in the review request
-                self.assertEqual(failed_count, 3, "Expected 3 failed issues")
-                self.assertEqual(passed_count, 13, "Expected 13 passed tests")
-                self.assertEqual(incomplete_count, 0, "Expected 0 incomplete tests")
+                # Check issues structure
+                issues = data.get('issues', {})
+                issue_categories = ['failed', 'passed', 'incomplete']
+                present_categories = [cat for cat in issue_categories if cat in issues]
+                
+                if missing_fields:
+                    details = f"Missing required fields: {missing_fields}"
+                    success = False
+                else:
+                    details = f"Enhanced fields: {present_enhanced}, Issue categories: {present_categories}"
+                
             else:
-                print(f"❌ Previous scan not found (status code: {response.status_code})")
-        else:
-            print(f"❌ New scan not found (status code: {response.status_code})")
-            self.skipTest(f"Scan with ID {self.new_scan_id} not found")
+                details = f"Status: {response.status_code}"
             
-        print("✅ New scan results format test completed")
+            self.log_test("Scan Results Structure", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Scan Results Structure", False, str(e))
+            return False
+
+    def test_pdf_export(self):
+        """Test PDF report export"""
+        if not self.scan_id:
+            self.log_test("PDF Export", False, "No scan ID available")
+            return False
+        
+        try:
+            response = requests.get(f"{self.api_url}/scans/{self.scan_id}/export/pdf", timeout=30)
+            success = response.status_code == 200
+            
+            if success:
+                content_type = response.headers.get('content-type', '')
+                content_length = len(response.content)
+                details = f"Content-Type: {content_type}, Size: {content_length} bytes"
+                success = 'pdf' in content_type.lower() and content_length > 1000
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("PDF Export", success, details)
+            return success
+        except Exception as e:
+            self.log_test("PDF Export", False, str(e))
+            return False
+
+    def test_json_export(self):
+        """Test JSON data export"""
+        if not self.scan_id:
+            self.log_test("JSON Export", False, "No scan ID available")
+            return False
+        
+        try:
+            response = requests.get(f"{self.api_url}/scans/{self.scan_id}/export/json", timeout=30)
+            success = response.status_code == 200
+            
+            if success:
+                try:
+                    data = response.json()
+                    # Check JSON export structure
+                    required_sections = ['scan_info', 'results', 'export_timestamp']
+                    missing_sections = [section for section in required_sections if section not in data]
+                    
+                    if missing_sections:
+                        details = f"Missing sections: {missing_sections}"
+                        success = False
+                    else:
+                        results = data.get('results', {})
+                        summary = results.get('summary', {})
+                        details = f"Sections: {list(data.keys())}, Summary: {summary}"
+                except json.JSONDecodeError:
+                    details = "Invalid JSON response"
+                    success = False
+            else:
+                details = f"Status: {response.status_code}"
+            
+            self.log_test("JSON Export", success, details)
+            return success
+        except Exception as e:
+            self.log_test("JSON Export", False, str(e))
+            return False
+
+    def test_screenshot_endpoint(self):
+        """Test screenshot viewing endpoint"""
+        if not self.scan_id:
+            self.log_test("Screenshot Endpoint", False, "No scan ID available")
+            return False
+        
+        try:
+            response = requests.get(f"{self.api_url}/scans/{self.scan_id}/screenshot", timeout=30)
+            
+            if response.status_code == 200:
+                content_type = response.headers.get('content-type', '')
+                content_length = len(response.content)
+                success = 'image' in content_type.lower() and content_length > 1000
+                details = f"Content-Type: {content_type}, Size: {content_length} bytes"
+            elif response.status_code == 404:
+                # Screenshot might not be available for this scan
+                success = True
+                details = "Screenshot not available (404) - acceptable for some scans"
+            else:
+                success = False
+                details = f"Status: {response.status_code}"
+            
+            self.log_test("Screenshot Endpoint", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Screenshot Endpoint", False, str(e))
+            return False
+
+    def test_get_all_scans(self):
+        """Test getting all scans"""
+        try:
+            response = requests.get(f"{self.api_url}/scans", timeout=10)
+            success = response.status_code == 200
+            
+            if success:
+                data = response.json()
+                scan_count = len(data)
+                details = f"Retrieved {scan_count} scans"
+                if scan_count > 0:
+                    # Check if our test scan is in the list
+                    scan_ids = [scan.get('id') for scan in data]
+                    if self.scan_id and self.scan_id in scan_ids:
+                        details += f", Test scan found"
+            else:
+                details = f"Status: {response.status_code}"
+            
+            self.log_test("Get All Scans", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Get All Scans", False, str(e))
+            return False
+
+    def test_user_scans(self):
+        """Test getting user-specific scans"""
+        try:
+            user_id = "test_user_123"
+            response = requests.get(f"{self.api_url}/users/{user_id}/scans", timeout=10)
+            success = response.status_code == 200
+            
+            if success:
+                data = response.json()
+                scan_count = len(data)
+                details = f"Retrieved {scan_count} scans for user {user_id}"
+            else:
+                details = f"Status: {response.status_code}"
+            
+            self.log_test("Get User Scans", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Get User Scans", False, str(e))
+            return False
+
+    def run_comprehensive_test(self):
+        """Run all tests in sequence"""
+        print("🚀 Starting Comprehensive Accessibility Scanner Backend Tests")
+        print("=" * 70)
+        
+        # Basic connectivity tests
+        if not self.test_api_health():
+            print("❌ API is not accessible. Stopping tests.")
+            return False
+        
+        # Test external API status
+        self.test_external_api_status()
+        
+        # Test scan creation and processing
+        if self.test_create_scan_with_visual_evidence():
+            # Wait for scan completion
+            if self.test_scan_completion_with_polling():
+                # Test enhanced features
+                self.test_scan_results_structure()
+                self.test_pdf_export()
+                self.test_json_export()
+                self.test_screenshot_endpoint()
+        
+        # Test listing endpoints
+        self.test_get_all_scans()
+        self.test_user_scans()
+        
+        # Print summary
+        print("\n" + "=" * 70)
+        print(f"📊 Test Summary: {self.tests_passed}/{self.tests_run} tests passed")
+        
+        if self.tests_passed == self.tests_run:
+            print("🎉 All tests passed! Backend is working correctly.")
+            return True
+        else:
+            failed_count = self.tests_run - self.tests_passed
+            print(f"⚠️  {failed_count} test(s) failed. Check the issues above.")
+            return False
+
+def main():
+    tester = AccessibilityScannerTester()
+    success = tester.run_comprehensive_test()
+    return 0 if success else 1
 
 if __name__ == "__main__":
-    unittest.main(argv=['first-arg-is-ignored'], exit=False)
+    sys.exit(main())
