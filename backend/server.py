@@ -1945,6 +1945,58 @@ async def get_external_apis_status():
     }
 
 
+# Main API Routes
+@api_router.get("/")
+async def root():
+    return {"message": "Accessibility Scanner API", "status": "running", "version": "1.0.0"}
+
+
+@api_router.post("/scans", response_model=ScanRequest)
+async def create_scan_request(
+    input: ScanRequestCreate, 
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new accessibility scan request (requires authentication)"""
+    try:
+        # Check scan limits
+        can_scan = await check_scan_limits(current_user)
+        if not can_scan:
+            limits = get_user_scan_limits(current_user.plan)
+            raise HTTPException(
+                status_code=403, 
+                detail=f"Scan limit exceeded. {current_user.plan.title()} plan allows {limits['monthly_scans']} scans per month. Upgrade to Pro for unlimited scans."
+            )
+        
+        # Create scan request
+        scan_dict = input.dict()
+        scan_dict['url'] = str(scan_dict['url'])  # Convert HttpUrl to string for MongoDB
+        scan_dict['user_id'] = current_user.id  # Link to authenticated user
+        scan_obj = ScanRequest(**scan_dict)
+        scan_data = scan_obj.dict()
+        scan_data['url'] = str(scan_data['url'])  # Ensure URL is string
+        
+        await db.scan_requests.insert_one(scan_data)
+        
+        # Increment user's scan count
+        await increment_user_scan_count(current_user.id)
+        
+        # Start background scanning task
+        background_tasks.add_task(
+            perform_accessibility_scan,
+            scan_obj.id,
+            str(input.url),
+            input.tool
+        )
+        
+        return scan_obj
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error creating scan request: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create scan request")
+
+
 # Include the router in the main app
 app.include_router(api_router)
 
