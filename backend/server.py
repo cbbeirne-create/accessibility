@@ -1,15 +1,16 @@
-from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks, Response
+from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks, Response, Depends
 from fastapi.responses import FileResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, EmailStr
 from typing import List, Optional, Dict, Any
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 import asyncio
 import requests
@@ -25,6 +26,10 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 import tempfile
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+import stripe
+import calendar
 
 
 ROOT_DIR = Path(__file__).parent
