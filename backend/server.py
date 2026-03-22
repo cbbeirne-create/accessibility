@@ -35,8 +35,15 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
-app = FastAPI()
+# Create the main app with API documentation
+app = FastAPI(
+    title="Accessibility Scanner API",
+    description="Professional website accessibility scanning platform with visual evidence capture and comprehensive reporting.",
+    version="1.0.0",
+    docs_url="/api/docs",  # Swagger UI
+    redoc_url="/api/redoc",  # ReDoc
+    openapi_url="/api/openapi.json"
+)
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
