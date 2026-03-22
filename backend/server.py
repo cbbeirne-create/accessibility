@@ -635,24 +635,59 @@ class AccessibilityScanner:
     
     @staticmethod
     async def scan_with_axe(url: str) -> Dict[str, Any]:
-        """Scan website using axe-core"""
-        driver = None
+        """Scan website using axe-core with Playwright"""
+        playwright = None
+        browser = None
+        page = None
         try:
-            # Set up Chrome driver
-            driver = AccessibilityScanner.setup_chrome_driver()
+            # Set up Playwright browser
+            playwright, browser = await AccessibilityScanner.setup_playwright_browser()
+            page = await browser.new_page()
             
             # Navigate to the URL
-            driver.get(str(url))
+            await page.goto(str(url), wait_until="domcontentloaded")
             
-            # Wait for page to load
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
+            # Wait for body element to be present
+            await page.wait_for_selector("body", timeout=10000)
             
-            # Inject axe-core and run scan
-            axe = Axe(driver)
-            axe.inject()
-            results = axe.run()
+            # Inject axe-core script
+            axe_script = """
+            // Inject axe-core
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/axe-core@4.7.0/axe.min.js';
+            document.head.appendChild(script);
+            
+            return new Promise((resolve) => {
+                script.onload = () => resolve(true);
+                script.onerror = () => resolve(false);
+            });
+            """
+            
+            # Wait for axe to load
+            await page.evaluate(axe_script)
+            await page.wait_for_timeout(2000)  # Give axe time to initialize
+            
+            # Run axe scan
+            results = await page.evaluate("""
+                () => {
+                    return new Promise((resolve) => {
+                        if (typeof axe !== 'undefined') {
+                            axe.run((err, results) => {
+                                if (err) {
+                                    resolve({ error: err.message });
+                                } else {
+                                    resolve(results);
+                                }
+                            });
+                        } else {
+                            resolve({ error: 'axe-core not loaded' });
+                        }
+                    });
+                }
+            """)
+            
+            if results.get("error"):
+                raise Exception(f"Axe scan failed: {results['error']}")
             
             # Calculate score and format results
             score = AccessibilityScanner.calculate_axe_score(results)
@@ -674,8 +709,12 @@ class AccessibilityScanner:
                 "tool": "axe-core"
             }
         finally:
-            if driver:
-                driver.quit()
+            if page:
+                await page.close()
+            if browser:
+                await browser.close()
+            if playwright:
+                await playwright.stop()
     
     @staticmethod
     def calculate_axe_score(axe_results: Dict[str, Any]) -> int:
