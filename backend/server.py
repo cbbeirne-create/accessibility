@@ -1777,36 +1777,21 @@ async def health_check():
 
 
 @api_router.get("/scans", response_model=List[ScanRequest])
-async def get_scan_requests(user_id: Optional[str] = None):
-    """Get all scan requests, optionally filtered by user_id"""
+async def get_scan_requests(current_user: User = Depends(get_current_user)):
+    """Get all scan requests for the authenticated user"""
     try:
-        query = {}
-        if user_id:
-            query["user_id"] = user_id
-            
-        scan_requests = await db.scan_requests.find(query).sort("createdAt", -1).to_list(100)
+        scan_requests = await db.scan_requests.find({"user_id": current_user.id}).sort("createdAt", -1).to_list(100)
         return [ScanRequest(**scan_request) for scan_request in scan_requests]
     except Exception as e:
         logging.error(f"Error fetching scan requests: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch scan requests")
 
 
-@api_router.get("/users/{user_id}/scans", response_model=List[ScanRequest])
-async def get_user_scans(user_id: str):
-    """Get all scan requests for a specific user"""
-    try:
-        scan_requests = await db.scan_requests.find({"user_id": user_id}).sort("createdAt", -1).to_list(100)
-        return [ScanRequest(**scan_request) for scan_request in scan_requests]
-    except Exception as e:
-        logging.error(f"Error fetching user scans: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch user scans")
-
-
 @api_router.get("/scans/{scan_id}", response_model=ScanRequest)
-async def get_scan_request(scan_id: str):
-    """Get a specific scan request by ID"""
+async def get_scan_request(scan_id: str, current_user: User = Depends(get_current_user)):
+    """Get a specific scan request by ID (user can only access their own scans)"""
     try:
-        scan_request = await db.scan_requests.find_one({"id": scan_id})
+        scan_request = await db.scan_requests.find_one({"id": scan_id, "user_id": current_user.id})
         if not scan_request:
             raise HTTPException(status_code=404, detail="Scan request not found")
         return ScanRequest(**scan_request)
@@ -1815,6 +1800,101 @@ async def get_scan_request(scan_id: str):
     except Exception as e:
         logging.error(f"Error fetching scan request {scan_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch scan request")
+
+
+@api_router.get("/scans/{scan_id}/export/pdf")
+async def export_scan_pdf(scan_id: str, current_user: User = Depends(get_current_user)):
+    """Export scan results as PDF (Pro plan required)"""
+    try:
+        # Check if user can export PDFs
+        limits = get_user_scan_limits(current_user.plan)
+        if not limits["can_export_pdf"]:
+            raise HTTPException(
+                status_code=403, 
+                detail="PDF export requires Pro plan. Upgrade to access this feature."
+            )
+        
+        # Get scan data (user can only access their own scans)
+        scan_data = await db.scan_requests.find_one({"id": scan_id, "user_id": current_user.id})
+        if not scan_data:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        # Generate PDF
+        pdf_bytes = await ReportExporter.generate_pdf_report(scan_data)
+        
+        # Create filename
+        url_safe = scan_data.get('url', 'scan').replace('https://', '').replace('http://', '').replace('/', '_')
+        filename = f"accessibility_report_{url_safe}_{scan_id[:8]}.pdf"
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"PDF export failed for scan {scan_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate PDF report")
+
+
+@api_router.get("/scans/{scan_id}/export/json")
+async def export_scan_json(scan_id: str, current_user: User = Depends(get_current_user)):
+    """Export scan results as JSON (available for all plans)"""
+    try:
+        # Get scan data (user can only access their own scans)
+        scan_data = await db.scan_requests.find_one({"id": scan_id, "user_id": current_user.id})
+        if not scan_data:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        # Generate JSON report
+        json_report = await ReportExporter.generate_json_report(scan_data)
+        
+        # Create filename
+        url_safe = scan_data.get('url', 'scan').replace('https://', '').replace('http://', '').replace('/', '_')
+        filename = f"accessibility_data_{url_safe}_{scan_id[:8]}.json"
+        
+        return Response(
+            content=json.dumps(json_report, indent=2, default=str),
+            media_type="application/json",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"JSON export failed for scan {scan_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate JSON report")
+
+
+@api_router.get("/scans/{scan_id}/screenshot")
+async def get_scan_screenshot(scan_id: str, current_user: User = Depends(get_current_user)):
+    """Get full page screenshot for scan (available for all plans)"""
+    try:
+        # Get scan data (user can only access their own scans)
+        scan_data = await db.scan_requests.find_one({"id": scan_id, "user_id": current_user.id})
+        if not scan_data:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        screenshot_data = scan_data.get('full_page_screenshot')
+        if not screenshot_data:
+            raise HTTPException(status_code=404, detail="Screenshot not available")
+        
+        # Decode base64 image
+        image_bytes = base64.b64decode(screenshot_data)
+        
+        return Response(
+            content=image_bytes,
+            media_type="image/png",
+            headers={"Content-Disposition": f"inline; filename=scan_{scan_id[:8]}_screenshot.png"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Screenshot retrieval failed for scan {scan_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve screenshot")
 
 
 @api_router.put("/scans/{scan_id}", response_model=ScanRequest)
