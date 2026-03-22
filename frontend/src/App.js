@@ -168,7 +168,6 @@ const MyScansPage = () => {
       setScans(response.data);
       setError("");
     } catch (error) {
-      console.error("Error fetching user scans:", error);
       setError("Failed to fetch your scans");
     } finally {
       setLoading(false);
