@@ -251,25 +251,57 @@ const getRemediationGuidance = (issue) => {
 
 // Navigation Component
 const Navigation = () => {
-  const userId = UserManager.getUserId();
+  const { user, logout, isAuthenticated } = useAuth();
   
   return (
     <nav className="bg-blue-600 text-white p-4 mb-8">
       <div className="container mx-auto flex justify-between items-center">
-        <h1 className="text-xl font-bold">Accessibility Scanner</h1>
+        <Link to="/" className="text-xl font-bold">Accessibility Scanner</Link>
+        
         <div className="flex items-center space-x-4">
-          <Link to="/" className="hover:text-blue-200 transition-colors">
-            Dashboard
-          </Link>
-          <Link to="/scan" className="hover:text-blue-200 transition-colors">
-            New Scan
-          </Link>
-          <Link to="/my-scans" className="hover:text-blue-200 transition-colors">
-            My Scans
-          </Link>
-          <div className="text-sm text-blue-200">
-            User: {userId.substring(0, 8)}...
-          </div>
+          {isAuthenticated ? (
+            <>
+              <Link to="/" className="hover:text-blue-200 transition-colors">
+                Dashboard
+              </Link>
+              <Link to="/scan" className="hover:text-blue-200 transition-colors">
+                New Scan
+              </Link>
+              <Link to="/pricing" className="hover:text-blue-200 transition-colors">
+                Pricing
+              </Link>
+              
+              {/* User Info */}
+              <div className="flex items-center space-x-3">
+                <div className="text-sm">
+                  <div className="font-medium">{user.full_name || user.email}</div>
+                  <div className="text-blue-200 text-xs">
+                    {user.plan.toUpperCase()} Plan
+                    {user.scans_remaining !== -1 && (
+                      <span className="ml-2">
+                        ({user.scans_remaining} scans left)
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={logout}
+                  className="bg-blue-500 hover:bg-blue-700 px-3 py-1 rounded text-sm transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="hover:text-blue-200 transition-colors">
+                Login
+              </Link>
+              <Link to="/signup" className="bg-blue-500 hover:bg-blue-700 px-4 py-2 rounded transition-colors">
+                Sign Up
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </nav>
