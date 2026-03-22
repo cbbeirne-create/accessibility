@@ -283,8 +283,49 @@ async def increment_user_scan_count(user_id: str):
     )
 
 
+async def check_and_reset_monthly_scan_count(user_id: str, current_period_start: Optional[datetime]) -> bool:
+    """
+    Check if we're in a new month and reset the scan count if needed.
+    Returns True if the count was reset.
+    """
+    now = datetime.utcnow()
+    
+    # If no period start set, initialize it to now
+    if not current_period_start:
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": {
+                "current_period_start": now,
+                "current_period_end": now.replace(day=1, month=now.month % 12 + 1 if now.month < 12 else 1, 
+                                                   year=now.year if now.month < 12 else now.year + 1),
+                "scans_used_this_month": 0
+            }}
+        )
+        return True
+    
+    # Check if we're in a new month compared to the period start
+    if (now.year > current_period_start.year or 
+        (now.year == current_period_start.year and now.month > current_period_start.month)):
+        # Reset the scan count for the new month
+        next_month = now.month % 12 + 1 if now.month < 12 else 1
+        next_year = now.year if now.month < 12 else now.year + 1
+        
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": {
+                "current_period_start": now,
+                "current_period_end": now.replace(day=1, month=next_month, year=next_year),
+                "scans_used_this_month": 0
+            }}
+        )
+        logging.info(f"Reset monthly scan count for user {user_id} - new month detected")
+        return True
+    
+    return False
+
+
 async def reset_monthly_scan_counts():
-    """Reset all users' monthly scan counts (to be run monthly)"""
+    """Reset all users' monthly scan counts (to be run monthly via cron)"""
     await db.users.update_many(
         {},
         {"$set": {"scans_used_this_month": 0}}
@@ -1597,6 +1638,13 @@ async def login(form_data: UserLogin):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    # Check and reset monthly scan count if we're in a new month
+    current_period_start = user.get("current_period_start")
+    if isinstance(current_period_start, str):
+        current_period_start = datetime.fromisoformat(current_period_start.replace('Z', '+00:00'))
+    
+    await check_and_reset_monthly_scan_count(user["id"], current_period_start)
+    
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user["email"]}, expires_delta=access_token_expires
@@ -1607,6 +1655,19 @@ async def login(form_data: UserLogin):
 @api_router.get("/auth/me", response_model=UserProfile)
 async def get_current_user_profile(current_user: User = Depends(get_current_user)):
     """Get current user profile with subscription info"""
+    
+    # Check and reset monthly scan count if we're in a new month
+    was_reset = await check_and_reset_monthly_scan_count(
+        current_user.id, 
+        current_user.current_period_start
+    )
+    
+    # If reset, refresh the user data
+    if was_reset:
+        user_data = await db.users.find_one({"id": current_user.id})
+        if user_data:
+            current_user = User(**user_data)
+    
     limits = get_user_scan_limits(current_user.plan)
     scans_remaining = limits["monthly_scans"] - current_user.scans_used_this_month if limits["monthly_scans"] != -1 else -1
     
