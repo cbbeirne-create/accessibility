@@ -1205,7 +1205,7 @@ class AccessibilityScanner:
 
 
 async def perform_accessibility_scan(scan_id: str, url: str, tool: ScanTool):
-    """Background task to perform accessibility scan"""
+    """Background task to perform accessibility scan with visual evidence"""
     try:
         logging.info(f"Starting accessibility scan for {url} using {tool}")
         
@@ -1219,15 +1219,26 @@ async def perform_accessibility_scan(scan_id: str, url: str, tool: ScanTool):
         
         # Update scan request in database (for axe-core only)
         if result["success"]:
+            update_data = {
+                "status": ScanStatus.completed,
+                "score": result["score"],
+                "issues": result["results"]
+            }
+            
+            # Add visual evidence if available
+            if result.get("visual_evidence"):
+                visual_evidence = result["visual_evidence"]
+                update_data.update({
+                    "full_page_screenshot": visual_evidence.get("full_page_screenshot"),
+                    "evidence_screenshots": visual_evidence.get("issue_screenshots", {}),
+                    "scan_metadata": result.get("scan_metadata", {})
+                })
+            
             await db.scan_requests.update_one(
                 {"id": scan_id},
-                {"$set": {
-                    "status": ScanStatus.completed,
-                    "score": result["score"],
-                    "issues": result["results"]
-                }}
+                {"$set": update_data}
             )
-            logging.info(f"Scan completed successfully for {url}")
+            logging.info(f"Scan completed successfully for {url} with visual evidence")
         else:
             await db.scan_requests.update_one(
                 {"id": scan_id},
