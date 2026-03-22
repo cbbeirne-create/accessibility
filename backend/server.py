@@ -675,7 +675,7 @@ class AccessibilityScanner:
                             el.classList.add("axe-violation-highlight");
                         }});
                     ''')
-                except:
+                except Exception:
                     continue  # Skip if selector is invalid
             
             # Capture full page screenshot
