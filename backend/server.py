@@ -772,17 +772,17 @@ class AccessibilityScanner:
             if page:
                 try:
                     await page.close()
-                except:
+                except Exception:
                     pass
             if browser:
                 try:
                     await browser.close()
-                except:
+                except Exception:
                     pass
             if playwright:
                 try:
                     await playwright.stop()
-                except:
+                except Exception:
                     pass
 
     @staticmethod
