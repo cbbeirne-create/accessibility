@@ -1644,7 +1644,6 @@ async def handle_subscription_created(subscription):
     """Handle subscription creation"""
     customer_id = subscription['customer']
     subscription_id = subscription['id']
-    status = subscription['status']
     current_period_start = datetime.fromtimestamp(subscription['current_period_start'])
     current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
     
