@@ -842,7 +842,7 @@ async def perform_accessibility_scan(scan_id: str, url: str, tool: ScanTool):
             result = await AccessibilityScanner.scan_with_axe(url)
         else:
             # For external APIs, use the server action
-            external_result = await runScanWithExternalApi(scan_id)
+            await runScanWithExternalApi(scan_id)
             return  # External API handler already updates the database
         
         # Update scan request in database (for axe-core only)
