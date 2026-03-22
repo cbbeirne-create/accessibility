@@ -1076,7 +1076,6 @@ const Dashboard = () => {
       const response = await axios.get(`${API}/scans`);
       setScans(response.data);
     } catch (error) {
-      console.error("Error fetching scans:", error);
       setError("Failed to fetch scan results");
     } finally {
       setLoading(false);
