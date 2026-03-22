@@ -545,7 +545,7 @@ class ReportExporter:
                 # Scan Information
                 info_data = [
                     ['URL:', scan_data.get('url', 'N/A')],
-                    ['Scan Date:', datetime.fromisoformat(scan_data.get('createdAt', '')).strftime('%Y-%m-%d %H:%M:%S') if scan_data.get('createdAt') else 'N/A'],
+                    ['Scan Date:', scan_data.get('createdAt').strftime('%Y-%m-%d %H:%M:%S') if scan_data.get('createdAt') else 'N/A'],
                     ['Tool:', scan_data.get('tool', 'N/A').upper()],
                     ['Status:', scan_data.get('status', 'N/A').upper()],
                     ['Accessibility Score:', f"{scan_data.get('score', 'N/A')}/100" if scan_data.get('score') is not None else 'N/A']
