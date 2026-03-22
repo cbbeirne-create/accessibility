@@ -1094,17 +1094,18 @@ const MyScansPage = () => {
 };
 
 // Scan Results Page Component
+// Scan Results Page Component - Premium Enterprise Dark Theme
 const ScanResultsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [scan, setScan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchScanDetails();
     
-    // If scan is pending, poll for updates
     const interval = setInterval(() => {
       if (scan && scan.status === "pending") {
         fetchScanDetails();
@@ -1127,43 +1128,50 @@ const ScanResultsPage = () => {
   };
 
   const getScoreColor = (score) => {
-    if (score >= 80) return 'text-green-600';
-    if (score >= 60) return 'text-yellow-600';
-    return 'text-red-600';
+    if (score >= 80) return 'text-emerald-400';
+    if (score >= 60) return 'text-amber-400';
+    return 'text-red-400';
   };
 
-  const getScoreBackgroundColor = (score) => {
-    if (score >= 80) return 'bg-green-50 border-green-200';
-    if (score >= 60) return 'bg-yellow-50 border-yellow-200';
-    return 'bg-red-50 border-red-200';
+  const getScoreBg = (score) => {
+    if (score >= 80) return 'from-emerald-500/20 to-teal-500/20 border-emerald-500/30';
+    if (score >= 60) return 'from-amber-500/20 to-orange-500/20 border-amber-500/30';
+    return 'from-red-500/20 to-rose-500/20 border-red-500/30';
+  };
+
+  const getScoreGradient = (score) => {
+    if (score >= 80) return 'from-emerald-500 to-teal-500';
+    if (score >= 60) return 'from-amber-500 to-orange-500';
+    return 'from-red-500 to-rose-500';
   };
 
   const getImpactColor = (impact) => {
     switch (impact) {
       case 'critical':
-        return 'bg-red-100 text-red-800 border-red-200';
+        return 'bg-red-500/20 text-red-400 border-red-500/30';
       case 'serious':
-        return 'bg-orange-100 text-orange-800 border-orange-200';
+        return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
       case 'moderate':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
       case 'minor':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
     }
   };
 
   const formatWcagReference = (tags) => {
+    if (!tags) return 'N/A';
     const wcagTags = tags.filter(tag => tag.startsWith('wcag'));
     return wcagTags.length > 0 ? wcagTags.join(', ').toUpperCase() : 'N/A';
   };
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 max-w-6xl">
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-lg text-gray-600">Loading scan details...</p>
+      <div className="min-h-[calc(100vh-73px)] bg-slate-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-400">Loading scan details...</p>
         </div>
       </div>
     );
@@ -1171,13 +1179,16 @@ const ScanResultsPage = () => {
 
   if (error || !scan) {
     return (
-      <div className="container mx-auto px-4 max-w-6xl">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
-          <h2 className="text-2xl font-bold text-red-800 mb-4">Scan Not Found</h2>
-          <p className="text-red-600 mb-6">{error || "The requested scan could not be found."}</p>
+      <div className="min-h-[calc(100vh-73px)] bg-slate-950 flex items-center justify-center px-4">
+        <div className="bg-slate-900 border border-red-500/30 rounded-2xl p-12 text-center max-w-md">
+          <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <X className="w-8 h-8 text-red-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-4">Scan Not Found</h2>
+          <p className="text-slate-400 mb-6">{error || "The requested scan could not be found."}</p>
           <button
             onClick={() => navigate('/')}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+            className="bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors"
           >
             Back to Dashboard
           </button>
@@ -1187,399 +1198,352 @@ const ScanResultsPage = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 max-w-6xl">
-      {/* Header Section */}
-      <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Accessibility Scan Results</h1>
-            <h2 className="text-xl text-gray-600 break-all mb-4">{scan.url}</h2>
-            <div className="flex items-center space-x-4 text-sm text-gray-500">
-              <span>Scanned: {new Date(scan.createdAt).toLocaleString()}</span>
-              <span>Tool: {scan.tool || "axe-core"}</span>
+    <div className="min-h-[calc(100vh-73px)] bg-slate-950 py-8 px-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header Section */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-bold text-white mb-2">Accessibility Scan Results</h1>
+              <p className="text-slate-400 break-all mb-3">{scan.url}</p>
+              <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
+                <span className="flex items-center">
+                  <BarChart3 className="w-4 h-4 mr-1.5" />
+                  {new Date(scan.createdAt).toLocaleString()}
+                </span>
+                <span className="px-2 py-1 bg-slate-800 rounded-lg text-slate-400">
+                  {scan.tool || "axe-core"}
+                </span>
+              </div>
             </div>
+            <button
+              onClick={() => navigate('/')}
+              data-testid="back-to-dashboard"
+              className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2 px-4 rounded-xl transition-colors flex items-center"
+            >
+              <ChevronRight className="w-4 h-4 mr-1 rotate-180" />
+              Back to Dashboard
+            </button>
           </div>
-          <button
-            onClick={() => navigate('/')}
-            className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors"
-          >
-            ← Back to Dashboard
-          </button>
         </div>
-      </div>
 
-      {/* Status-based Content */}
-      {scan.status === 'pending' && (
-        <div className="bg-white rounded-lg shadow-lg p-12 text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-6"></div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Scanning in progress...</h2>
-          <p className="text-gray-600">Please wait while we analyze the website for accessibility issues.</p>
-        </div>
-      )}
+        {/* Pending State */}
+        {scan.status === 'pending' && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
+            <div className="w-20 h-20 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mx-auto mb-6"></div>
+            <h2 className="text-2xl font-bold text-white mb-4">Scanning in progress...</h2>
+            <p className="text-slate-400">Please wait while we analyze the website for accessibility issues.</p>
+            <p className="text-slate-500 text-sm mt-4">This usually takes 15-30 seconds</p>
+          </div>
+        )}
 
-      {scan.status === 'error' && (
-        <div className="bg-white rounded-lg shadow-lg p-12 text-center">
-          <div className="text-red-500 text-6xl mb-6">⚠️</div>
-          <h2 className="text-2xl font-bold text-red-800 mb-4">Scan failed. Please try again later.</h2>
-          <p className="text-gray-600 mb-6">
-            {scan.error_message || "An unexpected error occurred during the accessibility scan."}
-          </p>
-          <button
-            onClick={() => navigate('/scan')}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-          >
-            Start New Scan
-          </button>
-        </div>
-      )}
-
-      {scan.status === 'completed' && (
-        <div className="space-y-8">
-          {/* Score Section */}
-          <div className={`rounded-lg border-2 p-8 text-center ${getScoreBackgroundColor(scan.score)}`}>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Accessibility Score</h2>
-            <div className={`text-6xl font-bold mb-4 ${getScoreColor(scan.score)}`}>
-              {scan.score}/100
+        {/* Error State */}
+        {scan.status === 'error' && (
+          <div className="bg-slate-900 border border-red-500/30 rounded-2xl p-12 text-center">
+            <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <X className="w-8 h-8 text-red-400" />
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-4 mb-4">
-              <div
-                className={`h-4 rounded-full ${
-                  scan.score >= 80 ? 'bg-green-500' : 
-                  scan.score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                }`}
-                style={{ width: `${scan.score}%` }}
-              ></div>
-            </div>
-            <p className="text-gray-700">
-              {scan.score >= 80 ? 'Excellent accessibility!' : 
-               scan.score >= 60 ? 'Good accessibility with room for improvement.' : 
-               'Poor accessibility - immediate attention needed.'}
+            <h2 className="text-2xl font-bold text-white mb-4">Scan Failed</h2>
+            <p className="text-slate-400 mb-6">
+              {scan.error_message || "An unexpected error occurred during the accessibility scan."}
             </p>
+            <button
+              onClick={() => navigate('/scan')}
+              className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25"
+            >
+              Try Again
+            </button>
           </div>
+        )}
 
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-              <div className="text-3xl font-bold text-red-600 mb-2">
-                {scan.issues?.failed ? scan.issues.failed.length : 0}
+        {/* Completed State */}
+        {scan.status === 'completed' && (
+          <div className="space-y-6">
+            {/* Score Section */}
+            <div className={`bg-gradient-to-br ${getScoreBg(scan.score)} border rounded-2xl p-8`}>
+              <div className="text-center">
+                <h2 className="text-lg font-medium text-slate-300 mb-4">Accessibility Score</h2>
+                <div className={`text-7xl font-bold mb-4 ${getScoreColor(scan.score)}`}>
+                  {scan.score}<span className="text-3xl text-slate-500">/100</span>
+                </div>
+                <div className="w-full max-w-md mx-auto bg-slate-800 rounded-full h-3 mb-4 overflow-hidden">
+                  <div
+                    className={`h-3 rounded-full bg-gradient-to-r ${getScoreGradient(scan.score)} transition-all duration-1000`}
+                    style={{ width: `${scan.score}%` }}
+                  ></div>
+                </div>
+                <p className="text-slate-400">
+                  {scan.score >= 80 ? 'Excellent accessibility! Your site follows best practices.' : 
+                   scan.score >= 60 ? 'Good accessibility with room for improvement.' : 
+                   'Needs attention - several accessibility issues found.'}
+                </p>
               </div>
-              <div className="text-red-700 font-medium">Failed Tests</div>
-              <div className="text-sm text-red-600 mt-1">Issues that need fixing</div>
             </div>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
-              <div className="text-3xl font-bold text-green-600 mb-2">
-                {scan.issues?.passes ? scan.issues.passes.length : 0}
-              </div>
-              <div className="text-green-700 font-medium">Passed Tests</div>
-              <div className="text-sm text-green-600 mt-1">Accessibility checks passed</div>
-            </div>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-              <div className="text-3xl font-bold text-yellow-600 mb-2">
-                {scan.issues?.incomplete ? scan.issues.incomplete.length : 0}
-              </div>
-              <div className="text-yellow-700 font-medium">Incomplete</div>
-              <div className="text-sm text-yellow-600 mt-1">Manual review needed</div>
-            </div>
-          </div>
 
-          {/* Failed Issues Table */}
-          {scan.issues?.failed && scan.issues.failed.length > 0 && (
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-              <div className="bg-red-50 border-b border-red-200 px-8 py-4">
-                <h3 className="text-xl font-bold text-red-800">❌ Accessibility Issues</h3>
-                <p className="text-red-600 text-sm mt-1">Issues that need immediate attention</p>
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-slate-900 border border-red-500/30 rounded-xl p-6 text-center">
+                <div className="text-4xl font-bold text-red-400 mb-2">
+                  {scan.issues?.failed ? scan.issues.failed.length : 0}
+                </div>
+                <div className="text-red-400 font-medium">Failed Tests</div>
+                <div className="text-sm text-slate-500 mt-1">Issues that need fixing</div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Issue Summary
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Impact
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        WCAG Reference
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Affected Elements
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {scan.issues.failed.map((issue, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <div className="max-w-xs">
-                            <div className="font-semibold text-gray-900 mb-1">{issue.id}</div>
-                            <div className="text-sm text-gray-600 mb-2">{issue.description}</div>
-                            {issue.help && (
-                              <div className="text-sm text-blue-600 mb-2">{issue.help}</div>
-                            )}
-                            {/* Remediation Guidance */}
-                            {(() => {
-                              const guidance = getRemediationGuidance(issue);
-                              return guidance ? (
-                                <div className="mt-3">
-                                  <div className="text-xs font-medium text-gray-700 mb-1">💡 How to fix it</div>
-                                  <div className="bg-gray-100 p-2 rounded text-sm text-gray-700">
-                                    {guidance}
-                                  </div>
-                                </div>
-                              ) : null;
-                            })()}
+              <div className="bg-slate-900 border border-emerald-500/30 rounded-xl p-6 text-center">
+                <div className="text-4xl font-bold text-emerald-400 mb-2">
+                  {scan.issues?.passed ? scan.issues.passed.length : 0}
+                </div>
+                <div className="text-emerald-400 font-medium">Passed Tests</div>
+                <div className="text-sm text-slate-500 mt-1">Accessibility checks passed</div>
+              </div>
+              <div className="bg-slate-900 border border-amber-500/30 rounded-xl p-6 text-center">
+                <div className="text-4xl font-bold text-amber-400 mb-2">
+                  {scan.issues?.incomplete ? scan.issues.incomplete.length : 0}
+                </div>
+                <div className="text-amber-400 font-medium">Incomplete</div>
+                <div className="text-sm text-slate-500 mt-1">Manual review needed</div>
+              </div>
+            </div>
+
+            {/* Failed Issues Section */}
+            {scan.issues?.failed && scan.issues.failed.length > 0 && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                <div className="bg-red-500/10 border-b border-red-500/20 px-6 py-4">
+                  <div className="flex items-center">
+                    <X className="w-5 h-5 text-red-400 mr-3" />
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Accessibility Issues ({scan.issues.failed.length})</h3>
+                      <p className="text-red-400/80 text-sm">Issues that need immediate attention</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-800">
+                  {scan.issues.failed.map((issue, index) => (
+                    <div key={index} className="p-6 hover:bg-slate-800/30 transition-colors">
+                      <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-start gap-3 mb-3">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-lg border ${getImpactColor(issue.impact)}`}>
+                              {issue.impact || 'Unknown'}
+                            </span>
+                            <span className="px-2 py-1 text-xs font-mono rounded-lg bg-slate-800 text-slate-400">
+                              {formatWcagReference(issue.wcag)}
+                            </span>
                           </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getImpactColor(issue.impact)}`}>
-                            {issue.impact || 'Unknown'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          {formatWcagReference(issue.wcag || [])}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900">
-                            {issue.count || 0} element(s)
+                          <h4 className="font-semibold text-white mb-2">{issue.id}</h4>
+                          <p className="text-slate-400 text-sm mb-3">{issue.description}</p>
+                          {issue.help && (
+                            <p className="text-emerald-400/80 text-sm mb-3">{issue.help}</p>
+                          )}
+                          
+                          {/* Remediation Guidance */}
+                          {(() => {
+                            const guidance = getRemediationGuidance(issue);
+                            return guidance ? (
+                              <div className="bg-slate-800/50 border border-emerald-500/20 rounded-xl p-4 mt-3">
+                                <div className="flex items-center text-emerald-400 text-sm font-medium mb-2">
+                                  <Zap className="w-4 h-4 mr-2" />
+                                  How to fix it
+                                </div>
+                                <p className="text-slate-300 text-sm">{guidance}</p>
+                              </div>
+                            ) : null;
+                          })()}
+                        </div>
+                        
+                        <div className="lg:w-48 shrink-0">
+                          <div className="text-sm text-slate-500 mb-2">
+                            {issue.count || 0} element(s) affected
                           </div>
                           {issue.elements && issue.elements.length > 0 && (
-                            <details className="mt-2">
-                              <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
+                            <details className="group">
+                              <summary className="text-sm text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors">
                                 View elements
                               </summary>
-                              <div className="mt-2 max-h-32 overflow-y-auto">
+                              <div className="mt-2 p-3 bg-slate-800 rounded-lg max-h-32 overflow-y-auto">
                                 {issue.elements.slice(0, 3).map((element, elemIndex) => (
-                                  <div key={elemIndex} className="text-xs text-gray-500 mb-1 font-mono">
+                                  <div key={elemIndex} className="text-xs text-slate-400 mb-1 font-mono break-all">
                                     {element.target ? element.target.join(', ') : 'N/A'}
                                   </div>
                                 ))}
                                 {issue.elements.length > 3 && (
-                                  <div className="text-xs text-gray-400">
+                                  <div className="text-xs text-slate-500 mt-2">
                                     ... and {issue.elements.length - 3} more
                                   </div>
                                 )}
                               </div>
                             </details>
                           )}
-                          {issue.selectors && issue.selectors.length > 0 && (
-                            <details className="mt-2">
-                              <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
-                                View selectors
-                              </summary>
-                              <div className="mt-2 max-h-32 overflow-y-auto">
-                                {issue.selectors.slice(0, 3).map((selector, selIndex) => (
-                                  <div key={selIndex} className="text-xs text-gray-500 mb-1 font-mono">
-                                    {Array.isArray(selector) ? selector.join(', ') : selector}
-                                  </div>
-                                ))}
-                                {issue.selectors.length > 3 && (
-                                  <div className="text-xs text-gray-400">
-                                    ... and {issue.selectors.length - 3} more
-                                  </div>
-                                )}
-                              </div>
-                            </details>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Passed Tests Collapsible Section */}
-          {scan.issues?.passed && scan.issues.passed.length > 0 && (
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-              <details className="group">
-                <summary className="cursor-pointer bg-green-50 border-b border-green-200 px-8 py-4 hover:bg-green-100 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xl font-bold text-green-800">✅ Passed Tests ({scan.issues.passed.length})</h3>
-                      <p className="text-green-600 text-sm mt-1">Tests that passed accessibility requirements</p>
-                    </div>
-                    <div className="transform group-open:rotate-180 transition-transform duration-200">
-                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
-                </summary>
-                <div className="px-8 py-6 bg-green-25">
-                  <div className="grid gap-4">
-                    {scan.issues.passed.map((test, index) => (
-                      <div key={index} className="border border-green-200 rounded-lg p-4 bg-green-50">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-green-800 mb-2">{test.id}</h4>
-                            <p className="text-sm text-green-700 mb-2">{test.description}</p>
-                            {test.help && (
-                              <p className="text-xs text-green-600 mb-2">{test.help}</p>
-                            )}
-                            <div className="flex items-center space-x-4 text-xs text-green-600">
-                              {test.wcag && test.wcag.length > 0 && (
-                                <span className="bg-green-100 px-2 py-1 rounded">
-                                  WCAG: {formatWcagReference(test.wcag)}
-                                </span>
-                              )}
-                              {test.count && (
-                                <span className="bg-green-100 px-2 py-1 rounded">
-                                  Elements: {test.count}
-                                </span>
-                              )}
-                            </div>
-                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </details>
-            </div>
-          )}
-
-          {/* Incomplete Tests Collapsible Section */}
-          {scan.issues?.incomplete && scan.issues.incomplete.length > 0 && (
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-              <details className="group">
-                <summary className="cursor-pointer bg-yellow-50 border-b border-yellow-200 px-8 py-4 hover:bg-yellow-100 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xl font-bold text-yellow-800">⚠️ Incomplete Tests ({scan.issues.incomplete.length})</h3>
-                      <p className="text-yellow-600 text-sm mt-1">Manual review needed - requires human verification</p>
                     </div>
-                    <div className="transform group-open:rotate-180 transition-transform duration-200">
-                      <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
-                </summary>
-                <div className="px-8 py-6 bg-yellow-25">
-                  <div className="grid gap-4">
-                    {scan.issues.incomplete.map((test, index) => (
-                      <div key={index} className="border border-yellow-200 rounded-lg p-4 bg-yellow-50">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-yellow-800 mb-2">{test.id}</h4>
-                            <p className="text-sm text-yellow-700 mb-2">{test.description}</p>
-                            {test.help && (
-                              <p className="text-xs text-yellow-600 mb-2">{test.help}</p>
-                            )}
-                            <div className="bg-yellow-100 border border-yellow-300 rounded p-2 mb-3">
-                              <p className="text-xs text-yellow-800 font-medium">
-                                📝 Manual Review Required
-                              </p>
-                              <p className="text-xs text-yellow-700 mt-1">
-                                {test.reason || "Requires human verification - automated testing cannot determine if this passes or fails"}
-                              </p>
-                            </div>
-                            <div className="flex items-center space-x-4 text-xs text-yellow-600">
-                              {test.wcag && test.wcag.length > 0 && (
-                                <span className="bg-yellow-100 px-2 py-1 rounded">
-                                  WCAG: {formatWcagReference(test.wcag)}
-                                </span>
-                              )}
-                              {test.count && (
-                                <span className="bg-yellow-100 px-2 py-1 rounded">
-                                  Elements: {test.count}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </details>
-            </div>
-          )}
-
-          {/* No Failed Issues Message */}
-          {scan.issues?.failed && scan.issues.failed.length === 0 && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-8 text-center">
-              <div className="text-green-500 text-4xl mb-4">✅</div>
-              <h3 className="text-xl font-bold text-green-800 mb-2">No Accessibility Issues Found!</h3>
-              <p className="text-green-600">This website meets all tested accessibility standards.</p>
-            </div>
-          )}
-
-          {/* Visual Evidence Section */}
-          {scan.full_page_screenshot && (
-            <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
-              <h3 className="text-2xl font-bold text-gray-800 mb-4">📸 Visual Evidence</h3>
-              <p className="text-gray-600 mb-4">
-                Full page screenshot with accessibility issues highlighted in red.
-              </p>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <img
-                  src={`data:image/png;base64,${scan.full_page_screenshot}`}
-                  alt="Full page screenshot with accessibility issues highlighted"
-                  className="max-w-full h-auto rounded border shadow-sm"
-                  style={{ maxHeight: '600px', objectFit: 'contain' }}
-                />
-                <div className="mt-4 text-center">
-                  <button
-                    onClick={() => window.open(`${API}/scans/${scan.id}/screenshot`, '_blank')}
-                    className="bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
-                  >
-                    View Full Size
-                  </button>
+                  ))}
                 </div>
               </div>
-            </div>
-          )}
-          <div className="flex justify-center space-x-4 flex-wrap gap-y-2">
-            <button
-              onClick={() => navigate('/scan')}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-            >
-              Run Another Scan
-            </button>
-            
-            {/* Download Report Buttons */}
-            {scan.status === 'completed' && (
-              <>
-                <button
-                  onClick={() => window.open(`${API}/scans/${scan.id}/export/pdf`, '_blank')}
-                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center space-x-2"
-                >
-                  <span>📄</span>
-                  <span>Download PDF Report</span>
-                </button>
-                
-                <button
-                  onClick={() => window.open(`${API}/scans/${scan.id}/export/json`, '_blank')}
-                  className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center space-x-2"
-                >
-                  <span>📊</span>
-                  <span>Download JSON Data</span>
-                </button>
-                
-                {scan.full_page_screenshot && (
-                  <button
-                    onClick={() => window.open(`${API}/scans/${scan.id}/screenshot`, '_blank')}
-                    className="bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center space-x-2"
-                  >
-                    <span>📸</span>
-                    <span>View Screenshot</span>
-                  </button>
-                )}
-              </>
             )}
-            
-            <button
-              onClick={() => window.print()}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg transition-colors"
-            >
-              Print Report
-            </button>
+
+            {/* Passed Tests Section */}
+            {scan.issues?.passed && scan.issues.passed.length > 0 && (
+              <details className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden group">
+                <summary className="cursor-pointer bg-emerald-500/10 border-b border-emerald-500/20 px-6 py-4 hover:bg-emerald-500/15 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <CheckCircle className="w-5 h-5 text-emerald-400 mr-3" />
+                      <div>
+                        <h3 className="text-lg font-bold text-white">Passed Tests ({scan.issues.passed.length})</h3>
+                        <p className="text-emerald-400/80 text-sm">Tests that passed accessibility requirements</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-emerald-400 transform group-open:rotate-90 transition-transform" />
+                  </div>
+                </summary>
+                <div className="p-6 grid gap-3">
+                  {scan.issues.passed.slice(0, 10).map((test, index) => (
+                    <div key={index} className="bg-slate-800/50 border border-emerald-500/10 rounded-xl p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-white mb-1">{test.id}</h4>
+                          <p className="text-sm text-slate-400">{test.description}</p>
+                        </div>
+                        {test.count && (
+                          <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg">
+                            {test.count} elements
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {scan.issues.passed.length > 10 && (
+                    <p className="text-center text-slate-500 text-sm">
+                      ... and {scan.issues.passed.length - 10} more passed tests
+                    </p>
+                  )}
+                </div>
+              </details>
+            )}
+
+            {/* Incomplete Tests Section */}
+            {scan.issues?.incomplete && scan.issues.incomplete.length > 0 && (
+              <details className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden group">
+                <summary className="cursor-pointer bg-amber-500/10 border-b border-amber-500/20 px-6 py-4 hover:bg-amber-500/15 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Shield className="w-5 h-5 text-amber-400 mr-3" />
+                      <div>
+                        <h3 className="text-lg font-bold text-white">Incomplete Tests ({scan.issues.incomplete.length})</h3>
+                        <p className="text-amber-400/80 text-sm">Manual review needed</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-amber-400 transform group-open:rotate-90 transition-transform" />
+                  </div>
+                </summary>
+                <div className="p-6 grid gap-3">
+                  {scan.issues.incomplete.map((test, index) => (
+                    <div key={index} className="bg-slate-800/50 border border-amber-500/10 rounded-xl p-4">
+                      <h4 className="font-medium text-white mb-1">{test.id}</h4>
+                      <p className="text-sm text-slate-400 mb-2">{test.description}</p>
+                      <p className="text-xs text-amber-400/80">
+                        {test.reason || "Requires human verification"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+
+            {/* No Issues Message */}
+            {scan.issues?.failed && scan.issues.failed.length === 0 && (
+              <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-12 text-center">
+                <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle className="w-8 h-8 text-emerald-400" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-2">No Accessibility Issues Found!</h3>
+                <p className="text-slate-400">This website meets all tested accessibility standards.</p>
+              </div>
+            )}
+
+            {/* Visual Evidence Section */}
+            {scan.full_page_screenshot && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-800">
+                  <div className="flex items-center">
+                    <Eye className="w-5 h-5 text-emerald-400 mr-3" />
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Visual Evidence</h3>
+                      <p className="text-slate-400 text-sm">Screenshot with accessibility issues highlighted</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="bg-slate-800 rounded-xl p-4 overflow-hidden">
+                    <img
+                      src={`data:image/png;base64,${scan.full_page_screenshot}`}
+                      alt="Full page screenshot with accessibility issues highlighted"
+                      className="max-w-full h-auto rounded-lg mx-auto"
+                      style={{ maxHeight: '500px', objectFit: 'contain' }}
+                    />
+                  </div>
+                  <div className="mt-4 text-center">
+                    <button
+                      onClick={() => window.open(`${API}/scans/${scan.id}/screenshot`, '_blank')}
+                      className="text-emerald-400 hover:text-emerald-300 text-sm font-medium transition-colors"
+                    >
+                      View Full Size →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap justify-center gap-4 pt-4">
+              <button
+                onClick={() => navigate('/scan')}
+                data-testid="run-another-scan"
+                className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25 flex items-center"
+              >
+                <Zap className="w-5 h-5 mr-2" />
+                Run Another Scan
+              </button>
+              
+              {scan.status === 'completed' && (
+                <>
+                  {user?.plan === 'pro' ? (
+                    <button
+                      onClick={() => window.open(`${API}/scans/${scan.id}/export/pdf`, '_blank')}
+                      data-testid="download-pdf"
+                      className="bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center"
+                    >
+                      <FileText className="w-5 h-5 mr-2" />
+                      Download PDF
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => navigate('/pricing')}
+                      data-testid="download-pdf-upgrade"
+                      className="bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center relative group"
+                    >
+                      <Lock className="w-4 h-4 mr-2 text-amber-400" />
+                      <FileText className="w-5 h-5 mr-2" />
+                      <span>Download PDF</span>
+                      <span className="ml-2 text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">PRO</span>
+                    </button>
+                  )}
+                  
+                  <button
+                    onClick={() => window.open(`${API}/scans/${scan.id}/export/json`, '_blank')}
+                    data-testid="download-json"
+                    className="bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center"
+                  >
+                    <BarChart3 className="w-5 h-5 mr-2" />
+                    Export JSON
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

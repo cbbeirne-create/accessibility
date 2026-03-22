@@ -773,44 +773,99 @@ class ReportExporter:
     
     @staticmethod
     async def generate_pdf_report(scan_data: Dict[str, Any]) -> bytes:
-        """Generate PDF report from scan data"""
+        """Generate PDF report from scan data - Auditly Enterprise Theme"""
         try:
             # Create temporary file for PDF
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-                doc = SimpleDocTemplate(tmp_file.name, pagesize=letter)
+                doc = SimpleDocTemplate(tmp_file.name, pagesize=letter, 
+                                       topMargin=0.75*inch, bottomMargin=0.75*inch,
+                                       leftMargin=0.75*inch, rightMargin=0.75*inch)
                 styles = getSampleStyleSheet()
                 story = []
                 
-                # Title
+                # Brand Colors - Emerald/Teal Enterprise Theme
+                brand_emerald = colors.Color(0.2, 0.83, 0.6)  # #34d399
+                brand_teal = colors.Color(0.13, 0.74, 0.67)   # #14b8a6
+                brand_slate = colors.Color(0.15, 0.18, 0.23)  # #1e293b
+                
+                # Custom Styles
                 title_style = ParagraphStyle(
-                    'CustomTitle',
+                    'AuditlyTitle',
                     parent=styles['Heading1'],
-                    fontSize=24,
-                    textColor=colors.darkblue,
-                    alignment=1  # Center alignment
+                    fontSize=28,
+                    textColor=brand_emerald,
+                    alignment=1,
+                    spaceAfter=6
                 )
-                story.append(Paragraph("Accessibility Scan Report", title_style))
+                
+                subtitle_style = ParagraphStyle(
+                    'AuditlySubtitle',
+                    parent=styles['Normal'],
+                    fontSize=12,
+                    textColor=colors.grey,
+                    alignment=1,
+                    spaceAfter=20
+                )
+                
+                section_style = ParagraphStyle(
+                    'AuditlySection',
+                    parent=styles['Heading2'],
+                    fontSize=16,
+                    textColor=brand_teal,
+                    spaceBefore=20,
+                    spaceAfter=10,
+                    borderPadding=5
+                )
+                
+                # Header
+                story.append(Paragraph("AUDITLY", title_style))
+                story.append(Paragraph("Website Accessibility Report", subtitle_style))
+                story.append(Spacer(1, 0.2 * inch))
+                
+                # Score Badge
+                score = scan_data.get('score', 0)
+                score_color = brand_emerald if score >= 80 else (colors.orange if score >= 60 else colors.red)
+                score_text = f"Accessibility Score: {score}/100"
+                score_style = ParagraphStyle(
+                    'ScoreStyle',
+                    parent=styles['Normal'],
+                    fontSize=20,
+                    textColor=score_color,
+                    alignment=1,
+                    fontName='Helvetica-Bold'
+                )
+                story.append(Paragraph(score_text, score_style))
+                
+                score_desc = "Excellent!" if score >= 80 else ("Good - Room for improvement" if score >= 60 else "Needs Attention")
+                story.append(Paragraph(score_desc, subtitle_style))
                 story.append(Spacer(1, 0.3 * inch))
                 
-                # Scan Information
+                # Scan Information Table
+                story.append(Paragraph("Scan Details", section_style))
                 info_data = [
-                    ['URL:', scan_data.get('url', 'N/A')],
-                    ['Scan Date:', scan_data.get('createdAt').strftime('%Y-%m-%d %H:%M:%S') if scan_data.get('createdAt') else 'N/A'],
-                    ['Tool:', scan_data.get('tool', 'N/A').upper()],
-                    ['Status:', scan_data.get('status', 'N/A').upper()],
-                    ['Accessibility Score:', f"{scan_data.get('score', 'N/A')}/100" if scan_data.get('score') is not None else 'N/A']
+                    ['Website URL', scan_data.get('url', 'N/A')],
+                    ['Scan Date', scan_data.get('createdAt').strftime('%B %d, %Y at %I:%M %p') if scan_data.get('createdAt') else 'N/A'],
+                    ['Testing Engine', scan_data.get('tool', 'axe-core').upper()],
+                    ['Status', scan_data.get('status', 'N/A').upper()]
                 ]
                 
-                info_table = Table(info_data, colWidths=[2*inch, 4*inch])
+                info_table = Table(info_data, colWidths=[1.8*inch, 4.7*inch])
                 info_table.setStyle(TableStyle([
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                     ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
                     ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 11),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey)
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BACKGROUND', (0, 0), (0, -1), colors.Color(0.95, 0.95, 0.95)),
+                    ('TEXTCOLOR', (0, 0), (0, -1), brand_slate),
+                    ('ROWBACKGROUNDS', (1, 0), (-1, -1), [colors.white, colors.Color(0.98, 0.98, 0.98)]),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.Color(0.9, 0.9, 0.9)),
+                    ('TOPPADDING', (0, 0), (-1, -1), 8),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 10),
                 ]))
                 story.append(info_table)
-                story.append(Spacer(1, 0.2 * inch))
+                story.append(Spacer(1, 0.3 * inch))
                 
                 # Issues Summary
                 if scan_data.get('issues'):
@@ -819,40 +874,100 @@ class ReportExporter:
                     passed_count = len(issues.get('passed', []))
                     incomplete_count = len(issues.get('incomplete', []))
                     
-                    story.append(Paragraph("Summary", styles['Heading2']))
+                    story.append(Paragraph("Results Summary", section_style))
                     summary_data = [
-                        ['Failed Tests:', str(failed_count)],
-                        ['Passed Tests:', str(passed_count)],
-                        ['Incomplete Tests:', str(incomplete_count)]
+                        ['Failed Tests', str(failed_count), 'Issues requiring fixes'],
+                        ['Passed Tests', str(passed_count), 'Accessibility checks passed'],
+                        ['Incomplete', str(incomplete_count), 'Manual review needed']
                     ]
                     
-                    summary_table = Table(summary_data, colWidths=[2*inch, 1*inch])
+                    summary_table = Table(summary_data, colWidths=[1.5*inch, 0.8*inch, 3.2*inch])
                     summary_table.setStyle(TableStyle([
-                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                        ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+                        ('ALIGN', (2, 0), (2, -1), 'LEFT'),
                         ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-                        ('FONTSIZE', (0, 0), (-1, -1), 11),
-                        ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey)
+                        ('FONTNAME', (1, 0), (1, -1), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 10),
+                        ('TEXTCOLOR', (0, 0), (0, 0), colors.red),
+                        ('TEXTCOLOR', (1, 0), (1, 0), colors.red),
+                        ('TEXTCOLOR', (0, 1), (0, 1), brand_emerald),
+                        ('TEXTCOLOR', (1, 1), (1, 1), brand_emerald),
+                        ('TEXTCOLOR', (0, 2), (0, 2), colors.orange),
+                        ('TEXTCOLOR', (1, 2), (1, 2), colors.orange),
+                        ('TEXTCOLOR', (2, 0), (2, -1), colors.grey),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.Color(0.9, 0.9, 0.9)),
+                        ('TOPPADDING', (0, 0), (-1, -1), 10),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
                     ]))
                     story.append(summary_table)
-                    story.append(Spacer(1, 0.2 * inch))
+                    story.append(Spacer(1, 0.3 * inch))
                     
                     # Failed Issues Details
                     if failed_count > 0:
-                        story.append(Paragraph("Failed Accessibility Tests", styles['Heading2']))
-                        for i, issue in enumerate(issues['failed'][:10]):  # Limit to first 10
-                            story.append(Paragraph(f"{i+1}. {issue.get('id', 'Unknown Issue')}", styles['Heading3']))
-                            story.append(Paragraph(f"<b>Description:</b> {issue.get('description', 'N/A')}", styles['Normal']))
-                            story.append(Paragraph(f"<b>Impact:</b> {issue.get('impact', 'N/A').title()}", styles['Normal']))
+                        story.append(Paragraph("Failed Accessibility Tests", section_style))
+                        
+                        issue_title_style = ParagraphStyle(
+                            'IssueTitle',
+                            parent=styles['Normal'],
+                            fontSize=11,
+                            textColor=brand_slate,
+                            fontName='Helvetica-Bold',
+                            spaceAfter=4
+                        )
+                        
+                        issue_detail_style = ParagraphStyle(
+                            'IssueDetail',
+                            parent=styles['Normal'],
+                            fontSize=9,
+                            textColor=colors.grey,
+                            leftIndent=15,
+                            spaceAfter=3
+                        )
+                        
+                        guidance_style = ParagraphStyle(
+                            'Guidance',
+                            parent=styles['Normal'],
+                            fontSize=9,
+                            textColor=brand_teal,
+                            leftIndent=15,
+                            spaceBefore=5,
+                            spaceAfter=10
+                        )
+                        
+                        for i, issue in enumerate(issues['failed'][:15]):  # Limit to first 15
+                            # Issue header with impact badge
+                            impact = issue.get('impact', 'unknown').upper()
+                            impact_color = colors.red if impact == 'CRITICAL' else (colors.orange if impact == 'SERIOUS' else colors.grey)
+                            
+                            story.append(Paragraph(f"Issue #{i+1}: {issue.get('id', 'Unknown Issue')}", issue_title_style))
+                            story.append(Paragraph(f"Impact: {impact}", ParagraphStyle('Impact', parent=issue_detail_style, textColor=impact_color, fontName='Helvetica-Bold')))
+                            story.append(Paragraph(f"Description: {issue.get('description', 'N/A')}", issue_detail_style))
                             
                             if issue.get('wcag'):
-                                wcag_refs = [tag for tag in issue['wcag'] if 'wcag' in tag.lower()]
+                                wcag_refs = [tag.upper() for tag in issue['wcag'] if 'wcag' in tag.lower()]
                                 if wcag_refs:
-                                    story.append(Paragraph(f"<b>WCAG Reference:</b> {', '.join(wcag_refs)}", styles['Normal']))
+                                    story.append(Paragraph(f"WCAG Reference: {', '.join(wcag_refs)}", issue_detail_style))
                             
                             if issue.get('help'):
-                                story.append(Paragraph(f"<b>Help:</b> {issue['help']}", styles['Normal']))
+                                story.append(Paragraph(f"How to fix: {issue['help']}", guidance_style))
                             
                             story.append(Spacer(1, 0.1 * inch))
+                        
+                        if failed_count > 15:
+                            story.append(Paragraph(f"... and {failed_count - 15} more issues. View full report online.", subtitle_style))
+                
+                # Footer
+                story.append(Spacer(1, 0.5 * inch))
+                footer_style = ParagraphStyle(
+                    'Footer',
+                    parent=styles['Normal'],
+                    fontSize=8,
+                    textColor=colors.grey,
+                    alignment=1
+                )
+                story.append(Paragraph("Generated by Auditly - Website Accessibility Scanner", footer_style))
+                story.append(Paragraph("Powered by axe-core | WCAG 2.1 Level AA Compliance Testing", footer_style))
                 
                 # Build PDF
                 doc.build(story)
@@ -925,90 +1040,6 @@ class ReportExporter:
             raise Exception(f"Failed to generate JSON report: {e}")
 
 
-@api_router.get("/scans/{scan_id}/export/pdf")
-async def export_scan_pdf(scan_id: str):
-    """Export scan results as PDF"""
-    try:
-        # Get scan data
-        scan_data = await db.scan_requests.find_one({"id": scan_id})
-        if not scan_data:
-            raise HTTPException(status_code=404, detail="Scan not found")
-        
-        # Generate PDF
-        pdf_bytes = await ReportExporter.generate_pdf_report(scan_data)
-        
-        # Create filename
-        url_safe = scan_data.get('url', 'scan').replace('https://', '').replace('http://', '').replace('/', '_')
-        filename = f"accessibility_report_{url_safe}_{scan_id[:8]}.pdf"
-        
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"PDF export failed for scan {scan_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate PDF report")
-
-
-@api_router.get("/scans/{scan_id}/export/json")
-async def export_scan_json(scan_id: str):
-    """Export scan results as JSON"""
-    try:
-        # Get scan data
-        scan_data = await db.scan_requests.find_one({"id": scan_id})
-        if not scan_data:
-            raise HTTPException(status_code=404, detail="Scan not found")
-        
-        # Generate JSON report
-        json_report = await ReportExporter.generate_json_report(scan_data)
-        
-        # Create filename
-        url_safe = scan_data.get('url', 'scan').replace('https://', '').replace('http://', '').replace('/', '_')
-        filename = f"accessibility_data_{url_safe}_{scan_id[:8]}.json"
-        
-        return Response(
-            content=json.dumps(json_report, indent=2, default=str),
-            media_type="application/json",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"JSON export failed for scan {scan_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate JSON report")
-
-
-@api_router.get("/scans/{scan_id}/screenshot")
-async def get_scan_screenshot(scan_id: str):
-    """Get full page screenshot for scan"""
-    try:
-        scan_data = await db.scan_requests.find_one({"id": scan_id})
-        if not scan_data:
-            raise HTTPException(status_code=404, detail="Scan not found")
-        
-        screenshot_data = scan_data.get('full_page_screenshot')
-        if not screenshot_data:
-            raise HTTPException(status_code=404, detail="Screenshot not available")
-        
-        # Decode base64 image
-        image_bytes = base64.b64decode(screenshot_data)
-        
-        return Response(
-            content=image_bytes,
-            media_type="image/png",
-            headers={"Content-Disposition": f"inline; filename=scan_{scan_id[:8]}_screenshot.png"}
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"Screenshot retrieval failed for scan {scan_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve screenshot")
 async def runScanWithExternalApi(scan_request_id: str) -> Dict[str, Any]:
     """
     Server action to run accessibility scan using external APIs

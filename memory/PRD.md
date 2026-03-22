@@ -163,13 +163,15 @@ REACT_APP_BACKEND_URL=https://...
 ## Known Limitations
 1. Stripe integration uses placeholder keys - checkout returns 503 error
 2. External scanning APIs (WAVE, EqualWeb, AccessiBe) require user API keys
-3. ScanResultsPage still uses old light theme styling (functional but not updated)
+3. PDF export requires Pro plan (paywall enforced)
 
 ## Testing Status
 - ✅ Backend: 95% pass rate (18/19 tests)
 - ✅ Frontend: 100% critical flows working
 - ✅ E2E: Auth flow, scan creation, results display all verified
+- ✅ ScanResultsPage: Updated with dark/emerald Enterprise theme
+- ✅ PDF Export Template: Updated with Auditly branding
 
 ## Last Updated
 - Date: March 22, 2026
-- Session: Implemented auth system, Stripe integration, premium UI design
+- Session: Updated ScanResultsPage and PDF export with dark/emerald Enterprise theme
