@@ -612,30 +612,26 @@ async def runScanWithExternalApi(scan_request_id: str) -> Dict[str, Any]:
 class AccessibilityScanner:
     
     @staticmethod
-    def setup_chrome_driver():
-        """Set up Chrome driver with headless options"""
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-extensions")
-        chrome_options.add_argument("--disable-logging")
-        chrome_options.add_argument("--disable-web-security")
-        chrome_options.add_argument("--allow-running-insecure-content")
-        chrome_options.add_argument("--ignore-certificate-errors")
-        
-        # Use system chromium binary
-        chrome_options.binary_location = "/usr/bin/chromium"
-        
+    async def setup_playwright_browser():
+        """Set up Playwright browser with headless options"""
         try:
-            # Use system chromedriver
-            service = Service("/usr/bin/chromedriver")
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-            return driver
+            playwright = await async_playwright().start()
+            browser = await playwright.chromium.launch(
+                headless=True,
+                args=[
+                    "--disable-gpu",
+                    "--no-sandbox", 
+                    "--disable-dev-shm-usage",
+                    "--disable-extensions",
+                    "--disable-web-security",
+                    "--allow-running-insecure-content",
+                    "--ignore-certificate-errors"
+                ]
+            )
+            return playwright, browser
         except Exception as e:
-            logging.error(f"Failed to setup Chrome driver: {e}")
-            raise Exception(f"Chrome driver setup failed: {e}")
+            logging.error(f"Failed to setup Playwright browser: {e}")
+            raise Exception(f"Playwright browser setup failed: {e}")
     
     @staticmethod
     async def scan_with_axe(url: str) -> Dict[str, Any]:
