@@ -779,13 +779,45 @@ const ScanResultsPage = () => {
           )}
 
           {/* Action Buttons */}
-          <div className="flex justify-center space-x-4">
+          <div className="flex justify-center space-x-4 flex-wrap gap-y-2">
             <button
               onClick={() => navigate('/scan')}
               className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
             >
               Run Another Scan
             </button>
+            
+            {/* Download Report Buttons */}
+            {scan.status === 'completed' && (
+              <>
+                <button
+                  onClick={() => window.open(`${API}/scans/${scan.id}/export/pdf`, '_blank')}
+                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center space-x-2"
+                >
+                  <span>📄</span>
+                  <span>Download PDF Report</span>
+                </button>
+                
+                <button
+                  onClick={() => window.open(`${API}/scans/${scan.id}/export/json`, '_blank')}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center space-x-2"
+                >
+                  <span>📊</span>
+                  <span>Download JSON Data</span>
+                </button>
+                
+                {scan.full_page_screenshot && (
+                  <button
+                    onClick={() => window.open(`${API}/scans/${scan.id}/screenshot`, '_blank')}
+                    className="bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center space-x-2"
+                  >
+                    <span>📸</span>
+                    <span>View Screenshot</span>
+                  </button>
+                )}
+              </>
+            )}
+            
             <button
               onClick={() => window.print()}
               className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg transition-colors"
