@@ -839,7 +839,7 @@ class AccessibilityScanner:
                         if element_screenshot:
                             evidence["issue_screenshots"][f"{issue_id}_{hash(selector)}"] = element_screenshot
                             break  # Only need one screenshot per issue
-                    except:
+                    except Exception:
                         continue
             
             return evidence
