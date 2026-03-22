@@ -154,7 +154,7 @@ class ScanRequest(BaseModel):
     tool: Optional[ScanTool] = Field(default=ScanTool.axe_core)
     createdAt: datetime = Field(default_factory=datetime.utcnow)
     error_message: Optional[str] = Field(default=None)
-    user_id: Optional[str] = Field(default=None)
+    user_id: str  # Now required - linked to authenticated user
     # Visual evidence fields
     full_page_screenshot: Optional[str] = Field(default=None)  # Base64 encoded image
     evidence_screenshots: Optional[Dict[str, str]] = Field(default=None)  # Issue ID -> Base64 screenshot
@@ -164,7 +164,6 @@ class ScanRequest(BaseModel):
 class ScanRequestCreate(BaseModel):
     url: HttpUrl
     tool: Optional[ScanTool] = Field(default=ScanTool.axe_core)
-    user_id: Optional[str] = Field(default=None)  # Optional user identifier
 
 
 class ScanRequestUpdate(BaseModel):
