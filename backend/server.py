@@ -65,7 +65,11 @@ class ScanRequest(BaseModel):
     tool: Optional[ScanTool] = Field(default=ScanTool.axe_core)
     createdAt: datetime = Field(default_factory=datetime.utcnow)
     error_message: Optional[str] = Field(default=None)
-    user_id: Optional[str] = Field(default=None)  # User identifier for tracking scans
+    user_id: Optional[str] = Field(default=None)
+    # Visual evidence fields
+    full_page_screenshot: Optional[str] = Field(default=None)  # Base64 encoded image
+    evidence_screenshots: Optional[Dict[str, str]] = Field(default=None)  # Issue ID -> Base64 screenshot
+    scan_metadata: Optional[Dict[str, Any]] = Field(default=None)  # Additional scan info
 
 
 class ScanRequestCreate(BaseModel):
