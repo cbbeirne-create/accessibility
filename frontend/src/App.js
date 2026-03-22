@@ -874,7 +874,7 @@ const ScanPage = () => {
       const response = await axios.get(`${API}/external-apis/status`);
       setApiStatus(response.data);
     } catch (error) {
-      console.error("Error fetching API status:", error);
+      // Error already handled by fetch function
     }
   };
 
