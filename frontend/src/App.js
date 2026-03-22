@@ -389,7 +389,6 @@ const ScanResultsPage = () => {
       setScan(response.data);
       setError("");
     } catch (error) {
-      console.error("Error fetching scan details:", error);
       setError("Failed to load scan details. The scan may not exist.");
     } finally {
       setLoading(false);
