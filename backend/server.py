@@ -1776,32 +1776,6 @@ async def health_check():
         )
 
 
-@api_router.post("/scans", response_model=ScanRequest)
-async def create_scan_request(input: ScanRequestCreate, background_tasks: BackgroundTasks):
-    """Create a new accessibility scan request and start scanning"""
-    try:
-        scan_dict = input.dict()
-        scan_dict['url'] = str(scan_dict['url'])  # Convert HttpUrl to string for MongoDB
-        scan_obj = ScanRequest(**scan_dict)
-        scan_data = scan_obj.dict()
-        scan_data['url'] = str(scan_data['url'])  # Ensure URL is string
-        
-        await db.scan_requests.insert_one(scan_data)
-        
-        # Start background scanning task
-        background_tasks.add_task(
-            perform_accessibility_scan,
-            scan_obj.id,
-            str(input.url),
-            input.tool
-        )
-        
-        return scan_obj
-    except Exception as e:
-        logging.error(f"Error creating scan request: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create scan request")
-
-
 @api_router.get("/scans", response_model=List[ScanRequest])
 async def get_scan_requests(user_id: Optional[str] = None):
     """Get all scan requests, optionally filtered by user_id"""
