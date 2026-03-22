@@ -1494,10 +1494,232 @@ async def perform_accessibility_scan(scan_id: str, url: str, tool: ScanTool):
         )
 
 
-# API Routes
-@api_router.get("/")
-async def root():
-    return {"message": "Accessibility Scanner API", "status": "running", "version": "1.0.0"}
+# Authentication API Routes
+@api_router.post("/auth/signup", response_model=Token)
+async def signup(user_data: UserCreate):
+    """Create new user account"""
+    try:
+        # Check if user already exists
+        existing_user = await get_user_by_email(user_data.email)
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Create Stripe customer
+        stripe_customer = create_stripe_customer(user_data.email, user_data.full_name)
+        
+        # Hash password and create user
+        hashed_password = get_password_hash(user_data.password)
+        user = User(
+            email=user_data.email,
+            full_name=user_data.full_name,
+            hashed_password=hashed_password,
+            stripe_customer_id=stripe_customer.id,
+            current_period_start=datetime.utcnow(),
+            current_period_end=datetime.utcnow() + timedelta(days=30)  # Free trial period
+        )
+        
+        # Save to database
+        user_data_dict = user.dict()
+        user_data_dict['email'] = str(user_data_dict['email'])
+        await db.users.insert_one(user_data_dict)
+        
+        # Create access token
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.email}, expires_delta=access_token_expires
+        )
+        
+        return {"access_token": access_token, "token_type": "bearer"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Signup failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create account")
+
+
+@api_router.post("/auth/login", response_model=Token)
+async def login(form_data: UserLogin):
+    """Authenticate user and return access token"""
+    user = await authenticate_user(form_data.email, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user["email"]}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@api_router.get("/auth/me", response_model=UserProfile)
+async def get_current_user_profile(current_user: User = Depends(get_current_user)):
+    """Get current user profile with subscription info"""
+    limits = get_user_scan_limits(current_user.plan)
+    scans_remaining = limits["monthly_scans"] - current_user.scans_used_this_month if limits["monthly_scans"] != -1 else -1
+    
+    return UserProfile(
+        id=current_user.id,
+        email=current_user.email,
+        full_name=current_user.full_name,
+        plan=current_user.plan,
+        subscription_status=current_user.subscription_status,
+        scans_used_this_month=current_user.scans_used_this_month,
+        scans_remaining=scans_remaining,
+        current_period_start=current_user.current_period_start,
+        current_period_end=current_user.current_period_end,
+        created_at=current_user.created_at
+    )
+
+
+# Subscription API Routes
+@api_router.post("/subscription/create-checkout-session")
+async def create_checkout_session(current_user: User = Depends(get_current_user)):
+    """Create Stripe checkout session for Pro subscription"""
+    try:
+        # Pro plan price ID (you'll need to create this in Stripe Dashboard)
+        PRO_PRICE_ID = os.environ.get('STRIPE_PRO_PRICE_ID', 'price_1234567890abcdef')
+        
+        success_url = f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/dashboard?success=true"
+        cancel_url = f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/pricing?canceled=true"
+        
+        session = create_stripe_checkout_session(
+            customer_id=current_user.stripe_customer_id,
+            price_id=PRO_PRICE_ID,
+            success_url=success_url,
+            cancel_url=cancel_url
+        )
+        
+        return {"checkout_url": session.url}
+        
+    except Exception as e:
+        logging.error(f"Checkout session creation failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create checkout session")
+
+
+@api_router.post("/subscription/webhook")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events"""
+    try:
+        payload = await request.body()
+        sig_header = request.headers.get('stripe-signature')
+        
+        # Construct the event
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+        
+        # Handle the event
+        if event['type'] == 'customer.subscription.created':
+            subscription = event['data']['object']
+            await handle_subscription_created(subscription)
+        elif event['type'] == 'customer.subscription.updated':
+            subscription = event['data']['object']
+            await handle_subscription_updated(subscription)
+        elif event['type'] == 'customer.subscription.deleted':
+            subscription = event['data']['object']
+            await handle_subscription_canceled(subscription)
+        elif event['type'] == 'invoice.payment_succeeded':
+            invoice = event['data']['object']
+            await handle_payment_succeeded(invoice)
+        
+        return {"status": "success"}
+        
+    except ValueError as e:
+        logging.error(f"Invalid payload: {e}")
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    except stripe.error.SignatureVerificationError as e:
+        logging.error(f"Invalid signature: {e}")
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    except Exception as e:
+        logging.error(f"Webhook error: {e}")
+        raise HTTPException(status_code=500, detail="Webhook processing failed")
+
+
+async def handle_subscription_created(subscription):
+    """Handle subscription creation"""
+    customer_id = subscription['customer']
+    subscription_id = subscription['id']
+    status = subscription['status']
+    current_period_start = datetime.fromtimestamp(subscription['current_period_start'])
+    current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
+    
+    # Update user to Pro plan
+    await db.users.update_one(
+        {"stripe_customer_id": customer_id},
+        {"$set": {
+            "plan": UserPlan.pro,
+            "subscription_status": SubscriptionStatus.active,
+            "stripe_subscription_id": subscription_id,
+            "current_period_start": current_period_start,
+            "current_period_end": current_period_end,
+            "scans_used_this_month": 0  # Reset scan count on upgrade
+        }}
+    )
+
+
+async def handle_subscription_updated(subscription):
+    """Handle subscription updates"""
+    customer_id = subscription['customer']
+    status = subscription['status']
+    current_period_start = datetime.fromtimestamp(subscription['current_period_start'])
+    current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
+    
+    # Map Stripe status to our enum
+    sub_status = SubscriptionStatus.active
+    if status == 'past_due':
+        sub_status = SubscriptionStatus.past_due
+    elif status in ['canceled', 'unpaid']:
+        sub_status = SubscriptionStatus.canceled
+    
+    await db.users.update_one(
+        {"stripe_customer_id": customer_id},
+        {"$set": {
+            "subscription_status": sub_status,
+            "current_period_start": current_period_start,
+            "current_period_end": current_period_end
+        }}
+    )
+
+
+async def handle_subscription_canceled(subscription):
+    """Handle subscription cancellation"""
+    customer_id = subscription['customer']
+    
+    # Downgrade user to free plan
+    await db.users.update_one(
+        {"stripe_customer_id": customer_id},
+        {"$set": {
+            "plan": UserPlan.free,
+            "subscription_status": SubscriptionStatus.canceled,
+            "stripe_subscription_id": None,
+            "scans_used_this_month": 0  # Reset for free plan limits
+        }}
+    )
+
+
+async def handle_payment_succeeded(invoice):
+    """Handle successful payment"""
+    customer_id = invoice['customer']
+    subscription_id = invoice['subscription']
+    
+    # Reset monthly scan count on successful payment
+    current_period_start = datetime.fromtimestamp(invoice['period_start'])
+    current_period_end = datetime.fromtimestamp(invoice['period_end'])
+    
+    await db.users.update_one(
+        {"stripe_customer_id": customer_id},
+        {"$set": {
+            "subscription_status": SubscriptionStatus.active,
+            "current_period_start": current_period_start,
+            "current_period_end": current_period_end,
+            "scans_used_this_month": 0  # Reset scan count
+        }}
+    )
 
 
 @api_router.get("/health")
