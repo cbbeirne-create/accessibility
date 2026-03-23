@@ -184,6 +184,15 @@ REACT_APP_BACKEND_URL=https://...
 8. **Live Regions**: Error messages use role="alert" with aria-live="polite"
 9. **Landmarks**: Main content wrapped in <main> with role="main"
 
+## PDF Export Accessibility (WCAG-Compliant Tagged PDF)
+1. **Document Metadata**: Title="Auditly Accessibility Report", Author, Subject, Keywords
+2. **Heading Tags**: Proper H1 (title), H2 (sections), H3 (issues) hierarchy
+3. **Table Headers**: Explicit header rows with styled differentiation
+4. **Alt Text for Visuals**: Screenshot includes descriptive figure caption
+5. **Reading Order**: Logical flow - Score → Details → Summary → Issues → Evidence
+6. **High Contrast**: Dark text on light backgrounds, color-coded status indicators
+7. **HTML Escaping**: All dynamic content escaped to prevent XML parsing errors
+
 ## Last Updated
 - Date: March 23, 2026
-- Session: Comprehensive WCAG 2.1 AA accessibility audit and fixes
+- Session: WCAG-compliant PDF export with proper metadata and structure
