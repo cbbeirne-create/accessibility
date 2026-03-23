@@ -6,6 +6,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import secrets
 from pathlib import Path
 from pydantic import BaseModel, Field, HttpUrl, EmailStr
 from typing import List, Optional, Dict, Any
@@ -124,6 +125,9 @@ class User(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_login: Optional[datetime] = None
     is_active: bool = Field(default=True)
+    # Password reset fields
+    password_reset_token: Optional[str] = None
+    password_reset_expires: Optional[datetime] = None
 
 
 class UserCreate(BaseModel):
@@ -157,6 +161,21 @@ class UserProfile(BaseModel):
     current_period_start: Optional[datetime] = None
     current_period_end: Optional[datetime] = None
     created_at: datetime
+
+
+# Password Reset Models
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8, description="Password must be at least 8 characters")
+
+
+class PasswordResetResponse(BaseModel):
+    message: str
+    success: bool
 
 
 class ScanRequest(BaseModel):
@@ -1793,6 +1812,167 @@ async def perform_accessibility_scan(scan_id: str, url: str, tool: ScanTool):
         )
 
 
+# ============================================
+# Email Service for Password Reset
+# ============================================
+
+def generate_password_reset_token() -> str:
+    """Generate a cryptographically secure password reset token"""
+    return secrets.token_urlsafe(32)
+
+
+def send_password_reset_email(email: str, reset_token: str, user_name: Optional[str] = None) -> bool:
+    """
+    Send password reset email via SendGrid.
+    Returns True if email was sent successfully, False otherwise.
+    """
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail, Email, To, Content
+    
+    sendgrid_api_key = os.environ.get('SENDGRID_API_KEY')
+    sender_email = os.environ.get('SENDER_EMAIL', 'noreply@auditly.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://remediation-lab.preview.emergentagent.com')
+    
+    # Check if SendGrid is configured
+    if not sendgrid_api_key or sendgrid_api_key.startswith('your_'):
+        logging.warning("SendGrid not configured - password reset email not sent")
+        # In development, log the reset link for testing
+        reset_link = f"{frontend_url}/reset-password?token={reset_token}"
+        logging.info(f"[DEV] Password reset link for {email}: {reset_link}")
+        return True  # Return True so the flow continues in development
+    
+    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
+    display_name = user_name or email.split('@')[0]
+    
+    # Branded HTML email template matching Auditly's Enterprise theme
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Reset Your Auditly Password</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 40px 20px;">
+                    <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #1e293b; border-radius: 16px; overflow: hidden;">
+                        <!-- Header -->
+                        <tr>
+                            <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, rgba(52, 211, 153, 0.1), rgba(20, 184, 166, 0.1));">
+                                <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #34d399, #14b8a6); border-radius: 16px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+                                    <span style="color: white; font-size: 28px; font-weight: bold;">A</span>
+                                </div>
+                                <h1 style="color: #ffffff; font-size: 24px; margin: 0 0 8px; font-weight: 700;">Auditly</h1>
+                                <p style="color: #94a3b8; font-size: 14px; margin: 0;">Website Accessibility Scanner</p>
+                            </td>
+                        </tr>
+                        
+                        <!-- Content -->
+                        <tr>
+                            <td style="padding: 30px 40px;">
+                                <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 16px; font-weight: 600;">Reset Your Password</h2>
+                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+                                    Hi {display_name},
+                                </p>
+                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+                                    We received a request to reset your Auditly account password. Click the button below to create a new password:
+                                </p>
+                                
+                                <!-- CTA Button -->
+                                <table role="presentation" style="width: 100%; margin: 32px 0;">
+                                    <tr>
+                                        <td style="text-align: center;">
+                                            <a href="{reset_link}" 
+                                               style="display: inline-block; padding: 16px 32px; background: linear-gradient(135deg, #34d399, #14b8a6); color: #ffffff; text-decoration: none; font-weight: 600; font-size: 16px; border-radius: 12px; box-shadow: 0 4px 14px rgba(52, 211, 153, 0.25);">
+                                                Reset Password
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                
+                                <p style="color: #94a3b8; font-size: 13px; line-height: 1.6; margin: 0 0 16px;">
+                                    This link will expire in <strong style="color: #f59e0b;">1 hour</strong> for security reasons.
+                                </p>
+                                
+                                <p style="color: #94a3b8; font-size: 13px; line-height: 1.6; margin: 0 0 16px;">
+                                    If you didn't request this password reset, you can safely ignore this email. Your password won't be changed.
+                                </p>
+                                
+                                <!-- Fallback Link -->
+                                <div style="background-color: #0f172a; border-radius: 8px; padding: 16px; margin-top: 24px;">
+                                    <p style="color: #64748b; font-size: 12px; margin: 0 0 8px;">
+                                        If the button doesn't work, copy and paste this link:
+                                    </p>
+                                    <p style="color: #34d399; font-size: 12px; margin: 0; word-break: break-all;">
+                                        {reset_link}
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+                        
+                        <!-- Footer -->
+                        <tr>
+                            <td style="padding: 24px 40px; border-top: 1px solid #334155; text-align: center;">
+                                <p style="color: #64748b; font-size: 12px; margin: 0 0 8px;">
+                                    This email was sent by Auditly
+                                </p>
+                                <p style="color: #64748b; font-size: 12px; margin: 0;">
+                                    WCAG 2.1 AA Compliant Accessibility Scanning
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    # Plain text fallback for accessibility
+    plain_text = f"""
+    Reset Your Auditly Password
+    
+    Hi {display_name},
+    
+    We received a request to reset your Auditly account password. 
+    
+    Click this link to reset your password:
+    {reset_link}
+    
+    This link will expire in 1 hour for security reasons.
+    
+    If you didn't request this password reset, you can safely ignore this email.
+    
+    - The Auditly Team
+    """
+    
+    try:
+        message = Mail(
+            from_email=Email(sender_email, "Auditly"),
+            to_emails=To(email),
+            subject="Reset Your Auditly Password",
+            plain_text_content=Content("text/plain", plain_text),
+            html_content=Content("text/html", html_content)
+        )
+        
+        sg = SendGridAPIClient(sendgrid_api_key)
+        response = sg.send(message)
+        
+        if response.status_code == 202:
+            logging.info(f"Password reset email sent to {email}")
+            return True
+        else:
+            logging.error(f"SendGrid returned status {response.status_code}")
+            return False
+            
+    except Exception as e:
+        logging.error(f"Failed to send password reset email: {e}")
+        return False
+
+
 # Authentication API Routes
 @api_router.post("/auth/signup", response_model=Token)
 async def signup(user_data: UserCreate):
@@ -1861,6 +2041,150 @@ async def login(form_data: UserLogin):
         data={"sub": user["email"]}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@api_router.post("/auth/forgot-password", response_model=PasswordResetResponse)
+async def forgot_password(request: ForgotPasswordRequest):
+    """
+    Request a password reset email.
+    For security, always returns success message even if email doesn't exist.
+    """
+    try:
+        # Find user by email
+        user = await get_user_by_email(request.email)
+        
+        if user:
+            # Generate secure reset token
+            reset_token = generate_password_reset_token()
+            
+            # Set token expiration to 1 hour from now
+            expires_at = datetime.utcnow() + timedelta(hours=1)
+            
+            # Store token and expiration in database
+            await db.users.update_one(
+                {"id": user["id"]},
+                {"$set": {
+                    "password_reset_token": reset_token,
+                    "password_reset_expires": expires_at
+                }}
+            )
+            
+            # Send reset email
+            user_name = user.get("full_name") or user.get("email", "").split("@")[0]
+            email_sent = send_password_reset_email(
+                email=str(user["email"]),
+                reset_token=reset_token,
+                user_name=user_name
+            )
+            
+            if not email_sent:
+                logging.warning(f"Failed to send reset email to {request.email}")
+        
+        # Always return success for security (don't reveal if email exists)
+        return PasswordResetResponse(
+            message="If an account with that email exists, you will receive a password reset link shortly.",
+            success=True
+        )
+        
+    except Exception as e:
+        logging.error(f"Forgot password error: {e}")
+        # Still return success for security
+        return PasswordResetResponse(
+            message="If an account with that email exists, you will receive a password reset link shortly.",
+            success=True
+        )
+
+
+@api_router.post("/auth/reset-password", response_model=PasswordResetResponse)
+async def reset_password(request: ResetPasswordRequest):
+    """
+    Reset password using a valid reset token.
+    Token must be valid and not expired. Tokens are one-time use.
+    """
+    try:
+        # Find user by reset token
+        user = await db.users.find_one({
+            "password_reset_token": request.token
+        })
+        
+        if not user:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid or expired reset token. Please request a new password reset."
+            )
+        
+        # Check if token has expired
+        expires_at = user.get("password_reset_expires")
+        if expires_at:
+            if isinstance(expires_at, str):
+                expires_at = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+            
+            if datetime.utcnow() > expires_at:
+                # Clear expired token
+                await db.users.update_one(
+                    {"id": user["id"]},
+                    {"$set": {
+                        "password_reset_token": None,
+                        "password_reset_expires": None
+                    }}
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail="Reset token has expired. Please request a new password reset."
+                )
+        
+        # Hash new password
+        hashed_password = get_password_hash(request.new_password)
+        
+        # Update password and clear reset token (one-time use)
+        await db.users.update_one(
+            {"id": user["id"]},
+            {"$set": {
+                "hashed_password": hashed_password,
+                "password_reset_token": None,
+                "password_reset_expires": None
+            }}
+        )
+        
+        logging.info(f"Password reset successful for user {user['id']}")
+        
+        return PasswordResetResponse(
+            message="Your password has been reset successfully. You can now log in with your new password.",
+            success=True
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Reset password error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while resetting your password. Please try again."
+        )
+
+
+@api_router.get("/auth/verify-reset-token")
+async def verify_reset_token(token: str):
+    """
+    Verify if a reset token is valid (used by frontend to show/hide reset form).
+    """
+    user = await db.users.find_one({
+        "password_reset_token": token
+    })
+    
+    if not user:
+        return {"valid": False, "message": "Invalid reset token"}
+    
+    # Check expiration
+    expires_at = user.get("password_reset_expires")
+    if expires_at:
+        if isinstance(expires_at, str):
+            expires_at = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+        
+        if datetime.utcnow() > expires_at:
+            return {"valid": False, "message": "Reset token has expired"}
+    
+    return {"valid": True, "message": "Token is valid"}
 
 
 @api_router.get("/auth/me", response_model=UserProfile)

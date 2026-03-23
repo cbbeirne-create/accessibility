@@ -11,7 +11,7 @@ async def test_remediation_guidance():
             print("Starting test for remediation guidance feature...")
             
             # Navigate to the dashboard
-            await page.goto("https://scan-a11y.preview.emergentagent.com/")
+            await page.goto("https://remediation-lab.preview.emergentagent.com/")
             print("Dashboard loaded successfully")
             
             # Find and click on the first "View Details" button
@@ -60,7 +60,7 @@ async def test_remediation_guidance():
             
             # Now try to find the scan with 39 passed tests
             print("\nNavigating back to dashboard to find the scan with 39 passed tests...")
-            await page.goto("https://scan-a11y.preview.emergentagent.com/")
+            await page.goto("https://remediation-lab.preview.emergentagent.com/")
             
             # Look for the scan with 39 passed tests
             scan_cards = await page.query_selector_all(".bg-white.rounded-lg.shadow-md.p-6")

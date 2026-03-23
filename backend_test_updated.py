@@ -8,7 +8,7 @@ import json
 class AccessibilityScannerAPITest(unittest.TestCase):
     def setUp(self):
         # Use the public endpoint for testing
-        self.base_url = "https://scan-a11y.preview.emergentagent.com/api"
+        self.base_url = "https://remediation-lab.preview.emergentagent.com/api"
         self.test_scan_id = None
         # Specific scan ID from the request for testing
         self.new_format_scan_id = "cfce0eb0-a9ff-4f2a-9c72-e00016aa59ac"
