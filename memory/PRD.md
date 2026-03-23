@@ -18,6 +18,8 @@ Auditly is a full-stack SaaS application for scanning website accessibility. It 
 - ✅ User login with JWT tokens
 - ✅ Protected routes requiring authentication
 - ✅ Auth context for state management
+- ✅ Forgot Password flow (email reset link)
+- ✅ Reset Password page with token validation
 
 ### 2. Subscription & Paywall System
 - ✅ Free plan: 2 scans/month
@@ -56,6 +58,9 @@ Auditly is a full-stack SaaS application for scanning website accessibility. It 
 - `POST /api/auth/signup` - Create new account
 - `POST /api/auth/login` - Login and get JWT
 - `GET /api/auth/me` - Get current user profile
+- `POST /api/auth/forgot-password` - Request password reset email
+- `GET /api/auth/verify-reset-token` - Validate reset token
+- `POST /api/auth/reset-password` - Set new password with token
 
 ### Scans (Protected)
 - `GET /api/scans` - List user's scans
@@ -143,8 +148,8 @@ REACT_APP_BACKEND_URL=https://...
 - [ ] Monthly scan count reset (cron job or webhook)
 
 ### P1 - Important
+- [ ] Add real SendGrid API key for email sending (currently mocked)
 - [ ] Email verification on signup
-- [ ] Password reset flow
 - [ ] Update ScanResultsPage with premium dark theme styling
 
 ### P2 - Nice to Have
@@ -162,8 +167,9 @@ REACT_APP_BACKEND_URL=https://...
 
 ## Known Limitations
 1. Stripe integration uses placeholder keys - checkout returns 503 error
-2. External scanning APIs (WAVE, EqualWeb, AccessiBe) require user API keys
-3. PDF export requires Pro plan (paywall enforced)
+2. SendGrid email integration uses placeholder keys - reset links logged to backend logs instead of being emailed
+3. External scanning APIs (WAVE, EqualWeb, AccessiBe) require user API keys
+4. PDF export requires Pro plan (paywall enforced)
 
 ## Testing Status
 - ✅ Backend: 95% pass rate (18/19 tests)
@@ -195,4 +201,12 @@ REACT_APP_BACKEND_URL=https://...
 
 ## Last Updated
 - Date: March 23, 2026
-- Session: WCAG-compliant PDF export with proper metadata and structure
+- Session: Completed Forgot Password flow (frontend routes + backend integration)
+
+## Changelog
+### March 23, 2026 - Password Reset Feature
+- Added `/forgot-password` and `/reset-password` routes to React Router
+- Integrated ForgotPasswordPage and ResetPasswordPage components
+- Verified "Forgot your password?" link on login page
+- E2E tested full password reset flow
+- Test report: `/app/test_reports/iteration_2.json` (100% pass rate)
