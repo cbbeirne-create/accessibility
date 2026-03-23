@@ -258,128 +258,163 @@ const Navigation = () => {
   const isActive = (path) => location.pathname === path;
   
   return (
-    <nav className="bg-slate-900 border-b border-slate-800">
-      <div className="container mx-auto px-6 py-4">
-        <div className="flex justify-between items-center">
-          {/* Logo */}
-          <Link to="/" className="flex items-center space-x-3" data-testid="nav-logo">
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center">
-              <Shield className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <span className="text-xl font-bold text-white tracking-tight">Auditly</span>
-              <span className="text-xs text-slate-400 block -mt-1">Accessibility Scanner</span>
-            </div>
-          </Link>
-          
-          {/* Navigation Links */}
-          <div className="flex items-center space-x-1">
-            {isAuthenticated ? (
-              <>
-                <Link 
-                  to="/" 
-                  data-testid="nav-dashboard"
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    isActive('/') 
-                      ? 'bg-slate-800 text-white' 
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                  }`}
-                >
-                  Dashboard
-                </Link>
-                <Link 
-                  to="/scan" 
-                  data-testid="nav-new-scan"
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    isActive('/scan') 
-                      ? 'bg-slate-800 text-white' 
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                  }`}
-                >
-                  New Scan
-                </Link>
-                <Link 
-                  to="/my-scans" 
-                  data-testid="nav-my-scans"
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    isActive('/my-scans') 
-                      ? 'bg-slate-800 text-white' 
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                  }`}
-                >
-                  My Scans
-                </Link>
-                <Link 
-                  to="/pricing" 
-                  data-testid="nav-pricing"
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    isActive('/pricing') 
-                      ? 'bg-slate-800 text-white' 
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                  }`}
-                >
-                  Pricing
-                </Link>
-                
-                {/* User Menu */}
-                <div className="flex items-center ml-4 pl-4 border-l border-slate-700">
-                  <div className="flex items-center space-x-3">
-                    <div className="text-right">
-                      <div className="text-sm font-medium text-white">{user?.full_name || user?.email?.split('@')[0]}</div>
-                      <div className="flex items-center justify-end space-x-2">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          user?.plan === 'pro' 
-                            ? 'bg-emerald-500/20 text-emerald-400' 
-                            : 'bg-slate-700 text-slate-400'
-                        }`}>
-                          {user?.plan?.toUpperCase()}
-                        </span>
-                        {user?.scans_remaining !== -1 && (
-                          <span className="text-xs text-slate-500">
-                            {user?.scans_remaining} left
+    <>
+      {/* Skip to main content link for keyboard users - WCAG 2.4.1 */}
+      <a 
+        href="#main-content" 
+        className="skip-link"
+        data-testid="skip-link"
+      >
+        Skip to main content
+      </a>
+      
+      <nav 
+        className="bg-slate-900 border-b border-slate-800"
+        role="navigation"
+        aria-label="Main navigation"
+      >
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex justify-between items-center">
+            {/* Logo */}
+            <Link 
+              to="/" 
+              className="flex items-center space-x-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 rounded-lg" 
+              data-testid="nav-logo"
+              aria-label="Auditly - Go to homepage"
+            >
+              <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center" aria-hidden="true">
+                <Shield className="w-6 h-6 text-white" aria-hidden="true" />
+              </div>
+              <div>
+                <span className="text-xl font-bold text-white tracking-tight">Auditly</span>
+                <span className="text-xs text-slate-400 block -mt-1">Accessibility Scanner</span>
+              </div>
+            </Link>
+            
+            {/* Navigation Links */}
+            <div className="flex items-center space-x-1" role="menubar">
+              {isAuthenticated ? (
+                <>
+                  <Link 
+                    to="/" 
+                    data-testid="nav-dashboard"
+                    role="menuitem"
+                    aria-current={isActive('/') ? 'page' : undefined}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
+                      isActive('/') 
+                        ? 'bg-slate-800 text-white' 
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                    }`}
+                  >
+                    Dashboard
+                  </Link>
+                  <Link 
+                    to="/scan" 
+                    data-testid="nav-new-scan"
+                    role="menuitem"
+                    aria-current={isActive('/scan') ? 'page' : undefined}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
+                      isActive('/scan') 
+                        ? 'bg-slate-800 text-white' 
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                    }`}
+                  >
+                    New Scan
+                  </Link>
+                  <Link 
+                    to="/my-scans" 
+                    data-testid="nav-my-scans"
+                    role="menuitem"
+                    aria-current={isActive('/my-scans') ? 'page' : undefined}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
+                      isActive('/my-scans') 
+                        ? 'bg-slate-800 text-white' 
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                    }`}
+                  >
+                    My Scans
+                  </Link>
+                  <Link 
+                    to="/pricing" 
+                    data-testid="nav-pricing"
+                    role="menuitem"
+                    aria-current={isActive('/pricing') ? 'page' : undefined}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
+                      isActive('/pricing') 
+                        ? 'bg-slate-800 text-white' 
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                    }`}
+                  >
+                    Pricing
+                  </Link>
+                  
+                  {/* User Menu */}
+                  <div className="flex items-center ml-4 pl-4 border-l border-slate-700">
+                    <div className="flex items-center space-x-3">
+                      <div className="text-right">
+                        <div className="text-sm font-medium text-white">{user?.full_name || user?.email?.split('@')[0]}</div>
+                        <div className="flex items-center justify-end space-x-2">
+                          <span 
+                            className={`text-xs px-2 py-0.5 rounded-full ${
+                              user?.plan === 'pro' 
+                                ? 'bg-emerald-500/20 text-emerald-300' 
+                                : 'bg-slate-700 text-slate-300'
+                            }`}
+                            aria-label={`Current plan: ${user?.plan}`}
+                          >
+                            {user?.plan?.toUpperCase()}
                           </span>
-                        )}
+                          {user?.scans_remaining !== -1 && (
+                            <span className="text-xs text-slate-400" aria-label={`${user?.scans_remaining} scans remaining`}>
+                              {user?.scans_remaining} left
+                            </span>
+                          )}
+                        </div>
                       </div>
+                      <button
+                        onClick={logout}
+                        data-testid="nav-logout"
+                        aria-label="Log out of your account"
+                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                      >
+                        Logout
+                      </button>
                     </div>
-                    <button
-                      onClick={logout}
-                      data-testid="nav-logout"
-                      className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-all"
-                    >
-                      Logout
-                    </button>
                   </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <Link 
-                  to="/pricing" 
-                  data-testid="nav-pricing-guest"
-                  className="px-4 py-2 text-slate-400 hover:text-white text-sm font-medium transition-colors"
-                >
-                  Pricing
-                </Link>
-                <Link 
-                  to="/login" 
-                  data-testid="nav-login"
-                  className="px-4 py-2 text-slate-400 hover:text-white text-sm font-medium transition-colors"
-                >
-                  Login
-                </Link>
-                <Link 
-                  to="/signup" 
-                  data-testid="nav-signup"
-                  className="ml-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all shadow-lg shadow-emerald-500/25"
-                >
-                  Start Free
-                </Link>
-              </>
-            )}
+                </>
+              ) : (
+                <>
+                  <Link 
+                    to="/pricing" 
+                    data-testid="nav-pricing-guest"
+                    role="menuitem"
+                    className="px-4 py-2 text-slate-300 hover:text-white text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded-lg"
+                  >
+                    Pricing
+                  </Link>
+                  <Link 
+                    to="/login" 
+                    data-testid="nav-login"
+                    role="menuitem"
+                    className="px-4 py-2 text-slate-300 hover:text-white text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded-lg"
+                  >
+                    Login
+                  </Link>
+                  <Link 
+                    to="/signup" 
+                    data-testid="nav-signup"
+                    role="menuitem"
+                    className="ml-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all shadow-lg shadow-emerald-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+                  >
+                    Start Free
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+    </>
   );
 };
 
@@ -420,62 +455,77 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-[calc(100vh-73px)] bg-slate-950 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
+      <main id="main-content" className="w-full max-w-md" role="main" aria-labelledby="login-heading">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Shield className="w-9 h-9 text-white" />
+          <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-4" aria-hidden="true">
+            <Shield className="w-9 h-9 text-white" aria-hidden="true" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Welcome back</h1>
-          <p className="text-slate-400">Sign in to your Auditly account</p>
+          <h1 id="login-heading" className="text-3xl font-bold text-white mb-2">Welcome back</h1>
+          <p className="text-slate-300">Sign in to your Auditly account</p>
         </div>
 
         {/* Login Form */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" aria-labelledby="login-heading">
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-sm" data-testid="login-error">
+              <div 
+                className="bg-red-500/10 border border-red-500/20 text-red-300 px-4 py-3 rounded-lg text-sm" 
+                data-testid="login-error"
+                role="alert"
+                aria-live="polite"
+              >
                 {error}
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
-                Email address
+              <label htmlFor="login-email" className="block text-sm font-medium text-slate-200 mb-2">
+                Email address <span className="text-red-400" aria-hidden="true">*</span>
+                <span className="sr-only">(required)</span>
               </label>
               <input
                 type="email"
-                id="email"
+                id="login-email"
+                name="email"
                 data-testid="login-email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
                 placeholder="you@company.com"
                 required
+                aria-required="true"
+                autoComplete="email"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
-                Password
+              <label htmlFor="login-password" className="block text-sm font-medium text-slate-200 mb-2">
+                Password <span className="text-red-400" aria-hidden="true">*</span>
+                <span className="sr-only">(required)</span>
               </label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
-                  id="password"
+                  id="login-password"
+                  name="password"
                   data-testid="login-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 pr-12 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                  className="w-full px-4 py-3 pr-12 bg-slate-800 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
                   placeholder="Enter your password"
                   required
+                  aria-required="true"
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-white transition-colors p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? <EyeOff className="w-5 h-5" aria-hidden="true" /> : <Eye className="w-5 h-5" aria-hidden="true" />}
                 </button>
               </div>
             </div>
@@ -484,15 +534,16 @@ const LoginPage = () => {
               type="submit"
               data-testid="login-submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-slate-600 disabled:to-slate-600 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25 disabled:shadow-none"
+              aria-busy={loading}
+              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-slate-600 disabled:to-slate-600 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
             >
               {loading ? (
                 <span className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Signing in...
+                  <span>Signing in...</span>
                 </span>
               ) : (
                 "Sign in"
@@ -501,15 +552,15 @@ const LoginPage = () => {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-slate-400 text-sm">
+            <p className="text-slate-300 text-sm">
               Don't have an account?{" "}
-              <Link to="/signup" className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
+              <Link to="/signup" className="text-emerald-300 hover:text-emerald-200 font-medium transition-colors underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded">
                 Sign up for free
               </Link>
             </p>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
@@ -563,94 +614,120 @@ const SignupPage = () => {
 
   return (
     <div className="min-h-[calc(100vh-73px)] bg-slate-950 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
+      <main id="main-content" className="w-full max-w-md" role="main" aria-labelledby="signup-heading">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Shield className="w-9 h-9 text-white" />
+          <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-4" aria-hidden="true">
+            <Shield className="w-9 h-9 text-white" aria-hidden="true" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Create your account</h1>
-          <p className="text-slate-400">Start scanning for free with 2 scans/month</p>
+          <h1 id="signup-heading" className="text-3xl font-bold text-white mb-2">Create your account</h1>
+          <p className="text-slate-300">Start scanning for free with 2 scans/month</p>
         </div>
 
         {/* Signup Form */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" aria-labelledby="signup-heading">
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-sm" data-testid="signup-error">
+              <div 
+                className="bg-red-500/10 border border-red-500/20 text-red-300 px-4 py-3 rounded-lg text-sm" 
+                data-testid="signup-error"
+                role="alert"
+                aria-live="polite"
+              >
                 {error}
               </div>
             )}
 
             <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="signup-fullName" className="block text-sm font-medium text-slate-200 mb-2">
                 Full name
               </label>
               <input
                 type="text"
-                id="fullName"
+                id="signup-fullName"
+                name="fullName"
                 data-testid="signup-fullname"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
                 placeholder="John Doe"
+                autoComplete="name"
               />
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
-                Work email
+              <label htmlFor="signup-email" className="block text-sm font-medium text-slate-200 mb-2">
+                Work email <span className="text-red-400" aria-hidden="true">*</span>
+                <span className="sr-only">(required)</span>
               </label>
               <input
                 type="email"
-                id="email"
+                id="signup-email"
+                name="email"
                 data-testid="signup-email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
                 placeholder="you@company.com"
                 required
+                aria-required="true"
+                autoComplete="email"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
-                Password
+              <label htmlFor="signup-password" className="block text-sm font-medium text-slate-200 mb-2">
+                Password <span className="text-red-400" aria-hidden="true">*</span>
+                <span className="sr-only">(required, minimum 8 characters)</span>
               </label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
-                  id="password"
+                  id="signup-password"
+                  name="password"
                   data-testid="signup-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 pr-12 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                  className="w-full px-4 py-3 pr-12 bg-slate-800 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
                   placeholder="At least 8 characters"
                   required
+                  aria-required="true"
+                  aria-describedby="password-requirements"
+                  autoComplete="new-password"
+                  minLength={8}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-white transition-colors p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? <EyeOff className="w-5 h-5" aria-hidden="true" /> : <Eye className="w-5 h-5" aria-hidden="true" />}
                 </button>
               </div>
+              <p id="password-requirements" className="text-xs text-slate-400 mt-1">
+                Minimum 8 characters required
+              </p>
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-300 mb-2">
-                Confirm password
+              <label htmlFor="signup-confirmPassword" className="block text-sm font-medium text-slate-200 mb-2">
+                Confirm password <span className="text-red-400" aria-hidden="true">*</span>
+                <span className="sr-only">(required)</span>
               </label>
               <input
                 type={showPassword ? "text" : "password"}
-                id="confirmPassword"
+                id="signup-confirmPassword"
+                name="confirmPassword"
                 data-testid="signup-confirm-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
                 placeholder="Confirm your password"
                 required
+                aria-required="true"
+                autoComplete="new-password"
               />
             </div>
 
@@ -658,15 +735,16 @@ const SignupPage = () => {
               type="submit"
               data-testid="signup-submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-slate-600 disabled:to-slate-600 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25 disabled:shadow-none"
+              aria-busy={loading}
+              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-slate-600 disabled:to-slate-600 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
             >
               {loading ? (
                 <span className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Creating account...
+                  <span>Creating account...</span>
                 </span>
               ) : (
                 "Create account"
@@ -675,9 +753,9 @@ const SignupPage = () => {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-slate-400 text-sm">
+            <p className="text-slate-300 text-sm">
               Already have an account?{" "}
-              <Link to="/login" className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
+              <Link to="/login" className="text-emerald-300 hover:text-emerald-200 font-medium transition-colors underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded">
                 Sign in
               </Link>
             </p>
@@ -685,17 +763,17 @@ const SignupPage = () => {
         </div>
 
         {/* Trust Badges */}
-        <div className="mt-8 flex items-center justify-center space-x-6 text-slate-500">
+        <div className="mt-8 flex items-center justify-center space-x-6 text-slate-400" aria-label="Security badges">
           <div className="flex items-center space-x-2">
-            <Lock className="w-4 h-4" />
+            <Lock className="w-4 h-4" aria-hidden="true" />
             <span className="text-xs">SSL Secured</span>
           </div>
           <div className="flex items-center space-x-2">
-            <Shield className="w-4 h-4" />
+            <Shield className="w-4 h-4" aria-hidden="true" />
             <span className="text-xs">WCAG Compliant</span>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
@@ -1199,19 +1277,19 @@ const ScanResultsPage = () => {
 
   return (
     <div className="min-h-[calc(100vh-73px)] bg-slate-950 py-8 px-4">
-      <div className="max-w-6xl mx-auto">
+      <main id="main-content" className="max-w-6xl mx-auto" role="main" aria-labelledby="results-heading">
         {/* Header Section */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
+        <header className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-white mb-2">Accessibility Scan Results</h1>
-              <p className="text-slate-400 break-all mb-3">{scan.url}</p>
-              <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
+              <h1 id="results-heading" className="text-2xl font-bold text-white mb-2">Accessibility Scan Results</h1>
+              <p className="text-slate-300 break-all mb-3">{scan.url}</p>
+              <div className="flex flex-wrap items-center gap-4 text-sm text-slate-400">
                 <span className="flex items-center">
-                  <BarChart3 className="w-4 h-4 mr-1.5" />
-                  {new Date(scan.createdAt).toLocaleString()}
+                  <BarChart3 className="w-4 h-4 mr-1.5" aria-hidden="true" />
+                  <time dateTime={scan.createdAt}>{new Date(scan.createdAt).toLocaleString()}</time>
                 </span>
-                <span className="px-2 py-1 bg-slate-800 rounded-lg text-slate-400">
+                <span className="px-2 py-1 bg-slate-800 rounded-lg text-slate-300">
                   {scan.tool || "axe-core"}
                 </span>
               </div>
@@ -1219,121 +1297,123 @@ const ScanResultsPage = () => {
             <button
               onClick={() => navigate('/')}
               data-testid="back-to-dashboard"
-              className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2 px-4 rounded-xl transition-colors flex items-center"
+              aria-label="Go back to dashboard"
+              className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium py-2 px-4 rounded-xl transition-colors flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
             >
-              <ChevronRight className="w-4 h-4 mr-1 rotate-180" />
+              <ChevronRight className="w-4 h-4 mr-1 rotate-180" aria-hidden="true" />
               Back to Dashboard
             </button>
           </div>
-        </div>
+        </header>
 
         {/* Pending State */}
         {scan.status === 'pending' && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
-            <div className="w-20 h-20 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mx-auto mb-6"></div>
+          <section className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center" aria-live="polite" aria-busy="true">
+            <div className="w-20 h-20 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mx-auto mb-6" role="status" aria-label="Loading"></div>
             <h2 className="text-2xl font-bold text-white mb-4">Scanning in progress...</h2>
-            <p className="text-slate-400">Please wait while we analyze the website for accessibility issues.</p>
-            <p className="text-slate-500 text-sm mt-4">This usually takes 15-30 seconds</p>
-          </div>
+            <p className="text-slate-300">Please wait while we analyze the website for accessibility issues.</p>
+            <p className="text-slate-400 text-sm mt-4">This usually takes 15-30 seconds</p>
+          </section>
         )}
 
         {/* Error State */}
         {scan.status === 'error' && (
-          <div className="bg-slate-900 border border-red-500/30 rounded-2xl p-12 text-center">
-            <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <X className="w-8 h-8 text-red-400" />
+          <section className="bg-slate-900 border border-red-500/30 rounded-2xl p-12 text-center" role="alert">
+            <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6" aria-hidden="true">
+              <X className="w-8 h-8 text-red-400" aria-hidden="true" />
             </div>
             <h2 className="text-2xl font-bold text-white mb-4">Scan Failed</h2>
-            <p className="text-slate-400 mb-6">
+            <p className="text-slate-300 mb-6">
               {scan.error_message || "An unexpected error occurred during the accessibility scan."}
             </p>
             <button
               onClick={() => navigate('/scan')}
-              className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25"
+              className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
             >
               Try Again
             </button>
-          </div>
+          </section>
         )}
 
         {/* Completed State */}
         {scan.status === 'completed' && (
           <div className="space-y-6">
             {/* Score Section */}
-            <div className={`bg-gradient-to-br ${getScoreBg(scan.score)} border rounded-2xl p-8`}>
+            <section className={`bg-gradient-to-br ${getScoreBg(scan.score)} border rounded-2xl p-8`} aria-labelledby="score-heading">
               <div className="text-center">
-                <h2 className="text-lg font-medium text-slate-300 mb-4">Accessibility Score</h2>
-                <div className={`text-7xl font-bold mb-4 ${getScoreColor(scan.score)}`}>
-                  {scan.score}<span className="text-3xl text-slate-500">/100</span>
+                <h2 id="score-heading" className="text-lg font-medium text-slate-200 mb-4">Accessibility Score</h2>
+                <div className={`text-7xl font-bold mb-4 ${getScoreColor(scan.score)}`} aria-label={`Score: ${scan.score} out of 100`}>
+                  {scan.score}<span className="text-3xl text-slate-400" aria-hidden="true">/100</span>
                 </div>
-                <div className="w-full max-w-md mx-auto bg-slate-800 rounded-full h-3 mb-4 overflow-hidden">
+                <div className="w-full max-w-md mx-auto bg-slate-800 rounded-full h-3 mb-4 overflow-hidden" role="progressbar" aria-valuenow={scan.score} aria-valuemin="0" aria-valuemax="100" aria-label="Accessibility score">
                   <div
                     className={`h-3 rounded-full bg-gradient-to-r ${getScoreGradient(scan.score)} transition-all duration-1000`}
                     style={{ width: `${scan.score}%` }}
                   ></div>
                 </div>
-                <p className="text-slate-400">
+                <p className="text-slate-300">
                   {scan.score >= 80 ? 'Excellent accessibility! Your site follows best practices.' : 
                    scan.score >= 60 ? 'Good accessibility with room for improvement.' : 
                    'Needs attention - several accessibility issues found.'}
                 </p>
               </div>
-            </div>
+            </section>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-slate-900 border border-red-500/30 rounded-xl p-6 text-center">
-                <div className="text-4xl font-bold text-red-400 mb-2">
+            <section aria-labelledby="summary-heading" className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <h2 id="summary-heading" className="sr-only">Test Results Summary</h2>
+              <div className="bg-slate-900 border border-red-500/30 rounded-xl p-6 text-center" role="status">
+                <div className="text-4xl font-bold text-red-300 mb-2" aria-label={`${scan.issues?.failed ? scan.issues.failed.length : 0} failed tests`}>
                   {scan.issues?.failed ? scan.issues.failed.length : 0}
                 </div>
-                <div className="text-red-400 font-medium">Failed Tests</div>
-                <div className="text-sm text-slate-500 mt-1">Issues that need fixing</div>
+                <div className="text-red-300 font-medium">Failed Tests</div>
+                <div className="text-sm text-slate-400 mt-1">Issues that need fixing</div>
               </div>
-              <div className="bg-slate-900 border border-emerald-500/30 rounded-xl p-6 text-center">
-                <div className="text-4xl font-bold text-emerald-400 mb-2">
+              <div className="bg-slate-900 border border-emerald-500/30 rounded-xl p-6 text-center" role="status">
+                <div className="text-4xl font-bold text-emerald-300 mb-2" aria-label={`${scan.issues?.passed ? scan.issues.passed.length : 0} passed tests`}>
                   {scan.issues?.passed ? scan.issues.passed.length : 0}
                 </div>
-                <div className="text-emerald-400 font-medium">Passed Tests</div>
-                <div className="text-sm text-slate-500 mt-1">Accessibility checks passed</div>
+                <div className="text-emerald-300 font-medium">Passed Tests</div>
+                <div className="text-sm text-slate-400 mt-1">Accessibility checks passed</div>
               </div>
-              <div className="bg-slate-900 border border-amber-500/30 rounded-xl p-6 text-center">
-                <div className="text-4xl font-bold text-amber-400 mb-2">
+              <div className="bg-slate-900 border border-amber-500/30 rounded-xl p-6 text-center" role="status">
+                <div className="text-4xl font-bold text-amber-300 mb-2" aria-label={`${scan.issues?.incomplete ? scan.issues.incomplete.length : 0} incomplete tests`}>
                   {scan.issues?.incomplete ? scan.issues.incomplete.length : 0}
                 </div>
-                <div className="text-amber-400 font-medium">Incomplete</div>
-                <div className="text-sm text-slate-500 mt-1">Manual review needed</div>
+                <div className="text-amber-300 font-medium">Incomplete</div>
+                <div className="text-sm text-slate-400 mt-1">Manual review needed</div>
               </div>
-            </div>
+            </section>
 
             {/* Failed Issues Section */}
             {scan.issues?.failed && scan.issues.failed.length > 0 && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+              <section className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden" aria-labelledby="failed-issues-heading">
                 <div className="bg-red-500/10 border-b border-red-500/20 px-6 py-4">
                   <div className="flex items-center">
-                    <X className="w-5 h-5 text-red-400 mr-3" />
+                    <X className="w-5 h-5 text-red-400 mr-3" aria-hidden="true" />
                     <div>
-                      <h3 className="text-lg font-bold text-white">Accessibility Issues ({scan.issues.failed.length})</h3>
-                      <p className="text-red-400/80 text-sm">Issues that need immediate attention</p>
+                      <h2 id="failed-issues-heading" className="text-lg font-bold text-white">Accessibility Issues ({scan.issues.failed.length})</h2>
+                      <p className="text-red-300 text-sm">Issues that need immediate attention</p>
                     </div>
                   </div>
                 </div>
-                <div className="divide-y divide-slate-800">
+                <ul className="divide-y divide-slate-800" role="list" aria-label="List of accessibility issues">
                   {scan.issues.failed.map((issue, index) => (
-                    <div key={index} className="p-6 hover:bg-slate-800/30 transition-colors">
-                      <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+                    <li key={index} className="p-6 hover:bg-slate-800/30 transition-colors">
+                      <article className="flex flex-col lg:flex-row lg:items-start gap-4">
                         <div className="flex-1">
                           <div className="flex items-start gap-3 mb-3">
                             <span className={`px-2 py-1 text-xs font-semibold rounded-lg border ${getImpactColor(issue.impact)}`}>
                               {issue.impact || 'Unknown'}
                             </span>
-                            <span className="px-2 py-1 text-xs font-mono rounded-lg bg-slate-800 text-slate-400">
+                            <span className="px-2 py-1 text-xs font-mono rounded-lg bg-slate-800 text-slate-300">
                               {formatWcagReference(issue.wcag)}
                             </span>
                           </div>
-                          <h4 className="font-semibold text-white mb-2">{issue.id}</h4>
-                          <p className="text-slate-400 text-sm mb-3">{issue.description}</p>
+                          <h3 className="font-semibold text-white mb-2">{issue.id}</h3>
+                          <p className="text-slate-300 text-sm mb-3">{issue.description}</p>
                           {issue.help && (
-                            <p className="text-emerald-400/80 text-sm mb-3">{issue.help}</p>
+                            <p className="text-emerald-300 text-sm mb-3">{issue.help}</p>
                           )}
                           
                           {/* Remediation Guidance */}
@@ -1341,33 +1421,33 @@ const ScanResultsPage = () => {
                             const guidance = getRemediationGuidance(issue);
                             return guidance ? (
                               <div className="bg-slate-800/50 border border-emerald-500/20 rounded-xl p-4 mt-3">
-                                <div className="flex items-center text-emerald-400 text-sm font-medium mb-2">
-                                  <Zap className="w-4 h-4 mr-2" />
+                                <div className="flex items-center text-emerald-300 text-sm font-medium mb-2">
+                                  <Zap className="w-4 h-4 mr-2" aria-hidden="true" />
                                   How to fix it
                                 </div>
-                                <p className="text-slate-300 text-sm">{guidance}</p>
+                                <p className="text-slate-200 text-sm">{guidance}</p>
                               </div>
                             ) : null;
                           })()}
                         </div>
                         
                         <div className="lg:w-48 shrink-0">
-                          <div className="text-sm text-slate-500 mb-2">
+                          <div className="text-sm text-slate-400 mb-2">
                             {issue.count || 0} element(s) affected
                           </div>
                           {issue.elements && issue.elements.length > 0 && (
                             <details className="group">
-                              <summary className="text-sm text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors">
+                              <summary className="text-sm text-emerald-300 cursor-pointer hover:text-emerald-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded">
                                 View elements
                               </summary>
                               <div className="mt-2 p-3 bg-slate-800 rounded-lg max-h-32 overflow-y-auto">
                                 {issue.elements.slice(0, 3).map((element, elemIndex) => (
-                                  <div key={elemIndex} className="text-xs text-slate-400 mb-1 font-mono break-all">
+                                  <div key={elemIndex} className="text-xs text-slate-300 mb-1 font-mono break-all">
                                     {element.target ? element.target.join(', ') : 'N/A'}
                                   </div>
                                 ))}
                                 {issue.elements.length > 3 && (
-                                  <div className="text-xs text-slate-500 mt-2">
+                                  <div className="text-xs text-slate-400 mt-2">
                                     ... and {issue.elements.length - 3} more
                                   </div>
                                 )}
@@ -1375,26 +1455,29 @@ const ScanResultsPage = () => {
                             </details>
                           )}
                         </div>
-                      </div>
-                    </div>
+                      </article>
+                    </li>
                   ))}
-                </div>
-              </div>
+                </ul>
+              </section>
             )}
 
-            {/* Passed Tests Section */}
+            {/* Passed Tests Section - Keyboard Accessible Collapsible */}
             {scan.issues?.passed && scan.issues.passed.length > 0 && (
-              <details className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden group">
-                <summary className="cursor-pointer bg-emerald-500/10 border-b border-emerald-500/20 px-6 py-4 hover:bg-emerald-500/15 transition-colors">
+              <details className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden group" aria-labelledby="passed-tests-heading">
+                <summary 
+                  className="cursor-pointer bg-emerald-500/10 border-b border-emerald-500/20 px-6 py-4 hover:bg-emerald-500/15 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400 list-none"
+                  aria-expanded="false"
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <CheckCircle className="w-5 h-5 text-emerald-400 mr-3" />
+                      <CheckCircle className="w-5 h-5 text-emerald-300 mr-3" aria-hidden="true" />
                       <div>
-                        <h3 className="text-lg font-bold text-white">Passed Tests ({scan.issues.passed.length})</h3>
-                        <p className="text-emerald-400/80 text-sm">Tests that passed accessibility requirements</p>
+                        <h2 id="passed-tests-heading" className="text-lg font-bold text-white">Passed Tests ({scan.issues.passed.length})</h2>
+                        <p className="text-emerald-300 text-sm">Tests that passed accessibility requirements</p>
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-emerald-400 transform group-open:rotate-90 transition-transform" />
+                    <ChevronRight className="w-5 h-5 text-emerald-300 transform group-open:rotate-90 transition-transform" aria-hidden="true" />
                   </div>
                 </summary>
                 <div className="p-6 grid gap-3">
@@ -1402,11 +1485,11 @@ const ScanResultsPage = () => {
                     <div key={index} className="bg-slate-800/50 border border-emerald-500/10 rounded-xl p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <h4 className="font-medium text-white mb-1">{test.id}</h4>
-                          <p className="text-sm text-slate-400">{test.description}</p>
+                          <h3 className="font-medium text-white mb-1">{test.id}</h3>
+                          <p className="text-sm text-slate-300">{test.description}</p>
                         </div>
                         {test.count && (
-                          <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg">
+                          <span className="text-xs text-emerald-300 bg-emerald-500/10 px-2 py-1 rounded-lg">
                             {test.count} elements
                           </span>
                         )}
@@ -1414,7 +1497,7 @@ const ScanResultsPage = () => {
                     </div>
                   ))}
                   {scan.issues.passed.length > 10 && (
-                    <p className="text-center text-slate-500 text-sm">
+                    <p className="text-center text-slate-400 text-sm">
                       ... and {scan.issues.passed.length - 10} more passed tests
                     </p>
                   )}
@@ -1422,27 +1505,30 @@ const ScanResultsPage = () => {
               </details>
             )}
 
-            {/* Incomplete Tests Section */}
+            {/* Incomplete Tests Section - Keyboard Accessible Collapsible */}
             {scan.issues?.incomplete && scan.issues.incomplete.length > 0 && (
-              <details className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden group">
-                <summary className="cursor-pointer bg-amber-500/10 border-b border-amber-500/20 px-6 py-4 hover:bg-amber-500/15 transition-colors">
+              <details className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden group" aria-labelledby="incomplete-tests-heading">
+                <summary 
+                  className="cursor-pointer bg-amber-500/10 border-b border-amber-500/20 px-6 py-4 hover:bg-amber-500/15 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400 list-none"
+                  aria-expanded="false"
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <Shield className="w-5 h-5 text-amber-400 mr-3" />
+                      <Shield className="w-5 h-5 text-amber-300 mr-3" aria-hidden="true" />
                       <div>
-                        <h3 className="text-lg font-bold text-white">Incomplete Tests ({scan.issues.incomplete.length})</h3>
-                        <p className="text-amber-400/80 text-sm">Manual review needed</p>
+                        <h2 id="incomplete-tests-heading" className="text-lg font-bold text-white">Incomplete Tests ({scan.issues.incomplete.length})</h2>
+                        <p className="text-amber-300 text-sm">Manual review needed</p>
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-amber-400 transform group-open:rotate-90 transition-transform" />
+                    <ChevronRight className="w-5 h-5 text-amber-300 transform group-open:rotate-90 transition-transform" aria-hidden="true" />
                   </div>
                 </summary>
                 <div className="p-6 grid gap-3">
                   {scan.issues.incomplete.map((test, index) => (
                     <div key={index} className="bg-slate-800/50 border border-amber-500/10 rounded-xl p-4">
-                      <h4 className="font-medium text-white mb-1">{test.id}</h4>
-                      <p className="text-sm text-slate-400 mb-2">{test.description}</p>
-                      <p className="text-xs text-amber-400/80">
+                      <h3 className="font-medium text-white mb-1">{test.id}</h3>
+                      <p className="text-sm text-slate-300 mb-2">{test.description}</p>
+                      <p className="text-xs text-amber-300">
                         {test.reason || "Requires human verification"}
                       </p>
                     </div>
@@ -1453,24 +1539,24 @@ const ScanResultsPage = () => {
 
             {/* No Issues Message */}
             {scan.issues?.failed && scan.issues.failed.length === 0 && (
-              <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-12 text-center">
-                <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <CheckCircle className="w-8 h-8 text-emerald-400" />
+              <section className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-12 text-center" role="status">
+                <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6" aria-hidden="true">
+                  <CheckCircle className="w-8 h-8 text-emerald-300" aria-hidden="true" />
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-2">No Accessibility Issues Found!</h3>
-                <p className="text-slate-400">This website meets all tested accessibility standards.</p>
-              </div>
+                <h2 className="text-2xl font-bold text-white mb-2">No Accessibility Issues Found!</h2>
+                <p className="text-slate-300">This website meets all tested accessibility standards.</p>
+              </section>
             )}
 
             {/* Visual Evidence Section */}
             {scan.full_page_screenshot && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+              <section className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden" aria-labelledby="evidence-heading">
                 <div className="px-6 py-4 border-b border-slate-800">
                   <div className="flex items-center">
-                    <Eye className="w-5 h-5 text-emerald-400 mr-3" />
+                    <Eye className="w-5 h-5 text-emerald-300 mr-3" aria-hidden="true" />
                     <div>
-                      <h3 className="text-lg font-bold text-white">Visual Evidence</h3>
-                      <p className="text-slate-400 text-sm">Screenshot with accessibility issues highlighted</p>
+                      <h2 id="evidence-heading" className="text-lg font-bold text-white">Visual Evidence</h2>
+                      <p className="text-slate-300 text-sm">Screenshot with accessibility issues highlighted</p>
                     </div>
                   </div>
                 </div>
@@ -1478,72 +1564,83 @@ const ScanResultsPage = () => {
                   <div className="bg-slate-800 rounded-xl p-4 overflow-hidden">
                     <img
                       src={`data:image/png;base64,${scan.full_page_screenshot}`}
-                      alt="Full page screenshot with accessibility issues highlighted"
+                      alt={`Full page screenshot of ${scan.url} with accessibility issues highlighted in red boxes`}
                       className="max-w-full h-auto rounded-lg mx-auto"
                       style={{ maxHeight: '500px', objectFit: 'contain' }}
                     />
                   </div>
                   <div className="mt-4 text-center">
-                    <button
-                      onClick={() => window.open(`${API}/scans/${scan.id}/screenshot`, '_blank')}
-                      className="text-emerald-400 hover:text-emerald-300 text-sm font-medium transition-colors"
+                    <a
+                      href={`${API}/scans/${scan.id}/screenshot`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-300 hover:text-emerald-200 text-sm font-medium transition-colors underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded"
+                      aria-label="View full size screenshot in new tab"
                     >
                       View Full Size →
-                    </button>
+                    </a>
                   </div>
                 </div>
-              </div>
+              </section>
             )}
 
             {/* Action Buttons */}
-            <div className="flex flex-wrap justify-center gap-4 pt-4">
+            <nav className="flex flex-wrap justify-center gap-4 pt-4" aria-label="Report actions">
               <button
                 onClick={() => navigate('/scan')}
                 data-testid="run-another-scan"
-                className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25 flex items-center"
+                aria-label="Run another accessibility scan"
+                className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25 flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
               >
-                <Zap className="w-5 h-5 mr-2" />
+                <Zap className="w-5 h-5 mr-2" aria-hidden="true" />
                 Run Another Scan
               </button>
               
               {scan.status === 'completed' && (
                 <>
                   {user?.plan === 'pro' ? (
-                    <button
-                      onClick={() => window.open(`${API}/scans/${scan.id}/export/pdf`, '_blank')}
+                    <a
+                      href={`${API}/scans/${scan.id}/export/pdf`}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       data-testid="download-pdf"
-                      className="bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center"
+                      aria-label="Download accessibility report as PDF"
+                      className="bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                     >
-                      <FileText className="w-5 h-5 mr-2" />
+                      <FileText className="w-5 h-5 mr-2" aria-hidden="true" />
                       Download PDF
-                    </button>
+                    </a>
                   ) : (
                     <button
                       onClick={() => navigate('/pricing')}
                       data-testid="download-pdf-upgrade"
-                      className="bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center relative group"
+                      aria-label="PDF download requires Pro plan. Click to view pricing."
+                      className="bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center relative group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                     >
-                      <Lock className="w-4 h-4 mr-2 text-amber-400" />
-                      <FileText className="w-5 h-5 mr-2" />
+                      <Lock className="w-4 h-4 mr-2 text-amber-300" aria-hidden="true" />
+                      <FileText className="w-5 h-5 mr-2" aria-hidden="true" />
                       <span>Download PDF</span>
-                      <span className="ml-2 text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">PRO</span>
+                      <span className="ml-2 text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full" aria-hidden="true">PRO</span>
                     </button>
                   )}
                   
-                  <button
-                    onClick={() => window.open(`${API}/scans/${scan.id}/export/json`, '_blank')}
+                  <a
+                    href={`${API}/scans/${scan.id}/export/json`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     data-testid="download-json"
-                    className="bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center"
+                    aria-label="Download accessibility report as JSON data"
+                    className="bg-slate-800 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                   >
-                    <BarChart3 className="w-5 h-5 mr-2" />
+                    <BarChart3 className="w-5 h-5 mr-2" aria-hidden="true" />
                     Export JSON
-                  </button>
+                  </a>
                 </>
               )}
-            </div>
+            </nav>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 };

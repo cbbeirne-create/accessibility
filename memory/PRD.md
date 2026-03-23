@@ -171,7 +171,19 @@ REACT_APP_BACKEND_URL=https://...
 - ✅ E2E: Auth flow, scan creation, results display all verified
 - ✅ ScanResultsPage: Updated with dark/emerald Enterprise theme
 - ✅ PDF Export Template: Updated with Auditly branding
+- ✅ Accessibility Audit: WCAG 2.1 AA compliant
+
+## Accessibility Audit Fixes Applied (March 2026)
+1. **Focus Indicators**: Visible emerald focus rings on all interactive elements (WCAG 2.4.7)
+2. **Skip Link**: Added "Skip to main content" link for keyboard users (WCAG 2.4.1)
+3. **Color Contrast**: Improved text contrast - slate-200/300 for labels, emerald-300 for links (4.5:1+ ratio)
+4. **ARIA Labels**: All icons have aria-hidden="true", buttons have descriptive aria-labels
+5. **Semantic Structure**: Proper heading hierarchy (H1 → H2 → H3) throughout
+6. **Form Accessibility**: Labels properly associated with inputs via htmlFor/id, required indicators
+7. **Keyboard Navigation**: Details/summary elements are keyboard-accessible (Enter/Space to toggle)
+8. **Live Regions**: Error messages use role="alert" with aria-live="polite"
+9. **Landmarks**: Main content wrapped in <main> with role="main"
 
 ## Last Updated
-- Date: March 22, 2026
-- Session: Updated ScanResultsPage and PDF export with dark/emerald Enterprise theme
+- Date: March 23, 2026
+- Session: Comprehensive WCAG 2.1 AA accessibility audit and fixes

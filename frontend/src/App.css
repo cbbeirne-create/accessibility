@@ -30,9 +30,44 @@
   transition: all 0.2s ease-in-out;
 }
 
-/* Focus states */
-input:focus, button:focus {
-  outline: none;
+/* Focus states - WCAG 2.4.7 compliant focus indicators */
+/* Never remove focus outline without providing a visible alternative */
+input:focus-visible, 
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible,
+details summary:focus-visible {
+  outline: 2px solid #34d399; /* emerald-400 */
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.25);
+}
+
+/* High contrast focus for dark backgrounds */
+.bg-slate-900 input:focus-visible,
+.bg-slate-950 input:focus-visible,
+.bg-slate-800 input:focus-visible {
+  outline-color: #34d399;
+  box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.3);
+}
+
+/* Skip to main content link */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #34d399;
+  color: #020617;
+  padding: 8px 16px;
+  z-index: 100;
+  font-weight: 600;
+  border-radius: 0 0 8px 0;
+  transition: top 0.2s;
+}
+
+.skip-link:focus {
+  top: 0;
 }
 
 /* Loading animation for scan results */
