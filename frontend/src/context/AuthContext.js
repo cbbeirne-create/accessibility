@@ -13,6 +13,7 @@
 import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { Navigate } from 'react-router-dom';
 import { authAPI, setAuthHandlers, getToken as apiGetToken, setToken as apiSetToken } from '../services/api';
+import { friendlyError } from '../utils/errors';
 
 // Create the context
 const AuthContext = createContext(null);
@@ -142,7 +143,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       return { 
         success: false, 
-        error: error.response?.data?.detail || 'Login failed. Please check your credentials.' 
+        error: friendlyError(error, 'Login failed. Please check your credentials.')
       };
     }
   };
@@ -170,7 +171,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       return { 
         success: false, 
-        error: error.response?.data?.detail || 'Signup failed. Please try again.' 
+        error: friendlyError(error, 'Signup failed. Please try again.')
       };
     }
   };
