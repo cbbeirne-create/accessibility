@@ -17,9 +17,10 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { organizationsAPI } from '../../services/api';
 import { formatDate } from '../../utils/wcag';
+import { friendlyError } from '../../utils/errors';
 
 const TeamPage = () => {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, refreshingUser } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -37,6 +38,9 @@ const TeamPage = () => {
   // Invite modal
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+
+  // Combine local action loading with global profile refresh flag
+  const isBusy = actionLoading || refreshingUser;
 
   // Get invite token from URL if present
   const searchParams = new URLSearchParams(location.search);
@@ -61,6 +65,7 @@ const TeamPage = () => {
       setPendingInvites(invitesData);
     } catch (err) {
       console.error('Failed to fetch team data:', err);
+      setError(friendlyError(err, 'Failed to load team data'));
     } finally {
       setLoading(false);
     }
@@ -75,7 +80,7 @@ const TeamPage = () => {
       navigate('/team', { replace: true });
       fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to accept invite');
+      setError(friendlyError(err, 'Failed to accept invite'));
     } finally {
       setActionLoading(false);
     }
@@ -94,7 +99,7 @@ const TeamPage = () => {
       await refreshUser();
       fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to create team');
+      setError(friendlyError(err, 'Failed to create team'));
     } finally {
       setActionLoading(false);
     }
@@ -114,7 +119,7 @@ const TeamPage = () => {
       setSuccess('Invitation sent!');
       fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to send invite');
+      setError(friendlyError(err, 'Failed to send invite'));
     } finally {
       setActionLoading(false);
     }
@@ -122,26 +127,30 @@ const TeamPage = () => {
 
   const handleCancelInvite = async (inviteId) => {
     if (!organization) return;
-    
+    setActionLoading(true);
     try {
       await organizationsAPI.cancelInvite(organization.id, inviteId);
       setSuccess('Invite cancelled');
       fetchData();
     } catch (err) {
-      setError('Failed to cancel invite');
+      setError(friendlyError(err, 'Failed to cancel invite'));
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleRemoveMember = async (userId, memberName) => {
     if (!organization) return;
     if (!window.confirm(`Are you sure you want to remove ${memberName} from the team?`)) return;
-    
+    setActionLoading(true);
     try {
       await organizationsAPI.removeMember(organization.id, userId);
       setSuccess('Member removed');
       fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to remove member');
+      setError(friendlyError(err, 'Failed to remove member'));
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -155,7 +164,7 @@ const TeamPage = () => {
       await refreshUser();
       setOrganization(null);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to leave team');
+      setError(friendlyError(err, 'Failed to leave team'));
     } finally {
       setActionLoading(false);
     }
@@ -172,7 +181,7 @@ const TeamPage = () => {
       await refreshUser();
       setOrganization(null);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to delete team');
+      setError(friendlyError(err, 'Failed to delete team'));
     } finally {
       setActionLoading(false);
     }
@@ -186,19 +195,22 @@ const TeamPage = () => {
       await refreshUser();
       fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to accept invite');
+      setError(friendlyError(err, 'Failed to accept invite'));
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleDeclineInvite = async (token) => {
+    setActionLoading(true);
     try {
       await organizationsAPI.declineInvite(token);
       setPendingInvites(pendingInvites.filter(i => i.token !== token));
       setSuccess('Invite declined');
     } catch (err) {
-      setError('Failed to decline invite');
+      setError(friendlyError(err, 'Failed to decline invite'));
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -212,7 +224,7 @@ const TeamPage = () => {
       setSuccess('Ownership transferred');
       fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to transfer ownership');
+      setError(friendlyError(err, 'Failed to transfer ownership'));
     } finally {
       setActionLoading(false);
     }
@@ -240,6 +252,13 @@ const TeamPage = () => {
               {organization ? 'Manage your team members and settings' : 'Create or join a team'}
             </p>
           </div>
+        </div>
+
+        {/* Inline status for operations (accessible) */}
+        <div aria-live="polite" aria-atomic="true" className="mb-4">
+          {isBusy && (
+            <div className="text-slate-400 text-sm">Updating membership…</div>
+          )}
         </div>
 
         {/* Alerts */}
@@ -283,16 +302,19 @@ const TeamPage = () => {
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => handleAcceptInvite(invite.token)}
-                      disabled={actionLoading}
+                      disabled={isBusy}
+                      aria-busy={isBusy}
                       className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
                     >
-                      Accept
+                      {isBusy ? 'Updating…' : 'Accept'}
                     </button>
                     <button
                       onClick={() => handleDeclineInvite(invite.token)}
+                      disabled={isBusy}
+                      aria-busy={isBusy}
                       className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-all"
                     >
-                      Decline
+                      {isBusy ? 'Processing…' : 'Decline'}
                     </button>
                   </div>
                 </div>
@@ -352,6 +374,8 @@ const TeamPage = () => {
                 {isOwner && (
                   <button
                     onClick={() => setShowInviteModal(true)}
+                    disabled={isBusy}
+                    aria-busy={isBusy}
                     className="flex items-center space-x-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-5 py-2.5 rounded-xl font-medium transition-all"
                   >
                     <Plus className="w-5 h-5" aria-hidden="true" />
@@ -392,6 +416,8 @@ const TeamPage = () => {
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => handleTransferOwnership(member.user_id, member.full_name || member.email)}
+                          disabled={isBusy}
+                          aria-busy={isBusy}
                           className="p-2 text-slate-400 hover:text-amber-400 transition-colors rounded-lg hover:bg-slate-700"
                           title="Transfer ownership"
                         >
@@ -399,6 +425,8 @@ const TeamPage = () => {
                         </button>
                         <button
                           onClick={() => handleRemoveMember(member.user_id, member.full_name || member.email)}
+                          disabled={isBusy}
+                          aria-busy={isBusy}
                           className="p-2 text-slate-400 hover:text-red-400 transition-colors rounded-lg hover:bg-slate-700"
                           title="Remove member"
                         >
@@ -426,6 +454,8 @@ const TeamPage = () => {
                         </div>
                         <button
                           onClick={() => handleCancelInvite(invite.id)}
+                          disabled={isBusy}
+                          aria-busy={isBusy}
                           className="text-slate-400 hover:text-red-400 transition-colors"
                           title="Cancel invite"
                         >
@@ -445,7 +475,8 @@ const TeamPage = () => {
                 {isOwner ? (
                   <button
                     onClick={handleDeleteTeam}
-                    disabled={actionLoading}
+                    disabled={isBusy}
+                    aria-busy={isBusy}
                     className="w-full flex items-center justify-center space-x-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl font-medium transition-all"
                   >
                     <Trash2 className="w-5 h-5" aria-hidden="true" />
@@ -454,7 +485,8 @@ const TeamPage = () => {
                 ) : (
                   <button
                     onClick={handleLeaveTeam}
-                    disabled={actionLoading}
+                    disabled={isBusy}
+                    aria-busy={isBusy}
                     className="w-full flex items-center justify-center space-x-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 px-4 py-3 rounded-xl font-medium transition-all"
                   >
                     <UserMinus className="w-5 h-5" aria-hidden="true" />
@@ -501,10 +533,11 @@ const TeamPage = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={actionLoading || !newTeamName.trim()}
+                  disabled={isBusy || !newTeamName.trim()}
+                  aria-busy={isBusy}
                   className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-slate-600 disabled:to-slate-600 text-white font-medium py-3 px-4 rounded-xl transition-all"
                 >
-                  {actionLoading ? 'Creating...' : 'Create Team'}
+                  {isBusy ? 'Creating…' : 'Create Team'}
                 </button>
               </div>
             </form>
@@ -547,10 +580,11 @@ const TeamPage = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={actionLoading || !inviteEmail.trim()}
+                  disabled={isBusy || !inviteEmail.trim()}
+                  aria-busy={isBusy}
                   className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-slate-600 disabled:to-slate-600 text-white font-medium py-3 px-4 rounded-xl transition-all"
                 >
-                  {actionLoading ? 'Sending...' : 'Send Invite'}
+                  {isBusy ? 'Sending…' : 'Send Invite'}
                 </button>
               </div>
             </form>
