@@ -142,7 +142,7 @@ const LoginPage = () => {
 
           <div className="mt-6 text-center">
             <p className="text-slate-300 text-sm">
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
               <Link to="/signup" className="text-emerald-300 hover:text-emerald-200 font-medium transition-colors underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded">
                 Sign up for free
               </Link>
