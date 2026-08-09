@@ -38,26 +38,85 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true); // initial bootstrap loading
   const [refreshingUser, setRefreshingUser] = useState(false); // local refresh flag for profile updates
-  const [token, setToken] = useState(localStorage.getItem('access_token'));
+  const [token, setToken] = useState(null);
 
-  // Load user profile on mount or token change (initial bootstrap)
+  // Helper to persist token in storage and state (defensive)
+  const persistToken = (t) => {
+    try {
+      if (t) {
+        localStorage.setItem('access_token', t);
+      } else {
+        localStorage.removeItem('access_token');
+      }
+    } catch (e) {
+      // ignore storage errors
+      console.warn('Failed to access localStorage for token', e);
+    }
+    setToken(t || null);
+  };
+
+  // On mount: read token from localStorage (guard SSR) and load user
   useEffect(() => {
-    const loadUser = async () => {
-      if (token) {
+    let mounted = true;
+
+    const init = async () => {
+      let t = null;
+      try {
+        if (typeof window !== 'undefined') {
+          t = localStorage.getItem('access_token');
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      if (!mounted) return;
+      setToken(t);
+
+      if (t) {
         try {
           const userData = await authAPI.getProfile();
+          if (!mounted) return;
           setUser(userData);
         } catch (error) {
-          // Token is invalid or expired
           console.error('Failed to load user profile:', error);
-          logout();
+          // try server-side revoke if possible
+          try {
+            await authAPI.logout();
+          } catch (e) {
+            // ignore
+          }
+          persistToken(null);
+          setUser(null);
         }
       }
-      setLoading(false);
+
+      if (mounted) setLoading(false);
     };
 
-    loadUser();
-  }, [token]);
+    init();
+
+    // Sync across tabs: listen for access_token changes in localStorage
+    const onStorage = (e) => {
+      if (e.key === 'access_token') {
+        const newToken = e.newValue;
+        setToken(newToken);
+        if (!newToken) {
+          setUser(null);
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', onStorage);
+    }
+
+    return () => {
+      mounted = false;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', onStorage);
+      }
+    };
+  }, []);
 
   /**
    * Login user with email and password
@@ -69,15 +128,14 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await authAPI.login(email, password);
       const { access_token } = data;
-      
-      // Store token
-      localStorage.setItem('access_token', access_token);
-      setToken(access_token);
-      
+
+      // Store token and update state
+      persistToken(access_token);
+
       // Fetch user profile
       const userData = await authAPI.getProfile();
       setUser(userData);
-      
+
       return { success: true };
     } catch (error) {
       return { 
@@ -100,8 +158,7 @@ export const AuthProvider = ({ children }) => {
       const { access_token } = data;
       
       // Store token
-      localStorage.setItem('access_token', access_token);
-      setToken(access_token);
+      persistToken(access_token);
       
       // Fetch user profile
       const userData = await authAPI.getProfile();
@@ -117,11 +174,15 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Logout user - clears token and user data
+   * Logout user - clears token and user data. Attempts server-side revoke if available.
    */
-  const logout = () => {
-    localStorage.removeItem('access_token');
-    setToken(null);
+  const logout = async () => {
+    try {
+      await authAPI.logout();
+    } catch (e) {
+      // ignore server errors on logout
+    }
+    try { persistToken(null); } catch (e) {}
     setUser(null);
   };
 
@@ -132,9 +193,7 @@ export const AuthProvider = ({ children }) => {
    * Returns the refreshed user object on success, or null on failure.
    */
   const refreshUser = useCallback(async () => {
-    const currentToken = localStorage.getItem('access_token');
-    if (!currentToken) {
-      // No token available, ensure user state is cleared
+    if (!token) {
       setUser(null);
       return null;
     }
@@ -146,6 +205,12 @@ export const AuthProvider = ({ children }) => {
       return userData;
     } catch (error) {
       console.error('Failed to refresh user:', error);
+      // If refresh failed due to auth, clear token
+      if (error.response?.status === 401) {
+        try { await authAPI.logout(); } catch (e) {}
+        persistToken(null);
+        setUser(null);
+      }
       return null;
     } finally {
       setRefreshingUser(false);
