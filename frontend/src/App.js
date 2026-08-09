@@ -21,7 +21,7 @@ import {
   CheckCircle, Shield, Zap, BarChart3, FileText, Lock, 
   ChevronRight, Check, X, Eye, EyeOff, AlertTriangle, 
   ExternalLink, Download, Calendar, Globe, ArrowRight,
-  Info, Search, Trash2 
+  Info, Search, Trash2, Mail, RefreshCw 
 } from "lucide-react";
 
 // Import modular services and context
@@ -761,6 +761,165 @@ const ResetPasswordPage = () => {
           </form>
         </div>
       </main>
+    </div>
+  );
+};
+
+// ============================================
+// Email Verification Page
+// ============================================
+
+const VerifyEmailPage = () => {
+  const [loading, setLoading] = useState(true);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const searchParams = new URLSearchParams(location.search);
+  const token = searchParams.get('token');
+
+  useEffect(() => {
+    const verifyEmail = async () => {
+      if (!token) {
+        setError("No verification token provided.");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await authAPI.verifyEmail(token);
+        if (response.success) {
+          setSuccess(true);
+        } else {
+          setError(response.message || "Verification failed.");
+        }
+      } catch (err) {
+        setError(err.response?.data?.detail || "Verification failed. The link may have expired.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    verifyEmail();
+  }, [token]);
+
+  if (loading) {
+    return (
+      <div className="min-h-[calc(100vh-73px)] bg-slate-950 flex items-center justify-center px-4">
+        <div className="text-center" role="status" aria-live="polite">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-400 mx-auto" aria-hidden="true" />
+          <p className="mt-4 text-slate-300">Verifying your email...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-[calc(100vh-73px)] bg-slate-950 flex items-center justify-center px-4">
+        <main id="main-content" className="w-full max-w-md" role="main">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
+            <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6" aria-hidden="true">
+              <CheckCircle className="w-8 h-8 text-emerald-400" aria-hidden="true" />
+            </div>
+            <h1 className="text-2xl font-bold text-white mb-4">Email Verified!</h1>
+            <p className="text-slate-300 mb-6">
+              Your email has been successfully verified. You now have full access to all Auditly features.
+            </p>
+            <Link
+              to="/"
+              className="block w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold py-3 px-6 rounded-xl transition-all text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+            >
+              Go to Dashboard
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-[calc(100vh-73px)] bg-slate-950 flex items-center justify-center px-4">
+      <main id="main-content" className="w-full max-w-md" role="main">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
+          <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6" aria-hidden="true">
+            <X className="w-8 h-8 text-red-400" aria-hidden="true" />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-4">Verification Failed</h1>
+          <p className="text-slate-300 mb-6">{error}</p>
+          <div className="space-y-3">
+            <Link
+              to="/login"
+              className="block w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold py-3 px-6 rounded-xl transition-all text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+            >
+              Go to Login
+            </Link>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+// Email Verification Banner Component
+const EmailVerificationBanner = () => {
+  const { user, refreshUser } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  if (!user || user.email_verified) {
+    return null;
+  }
+
+  const handleResend = async () => {
+    setLoading(true);
+    try {
+      await authAPI.resendVerification(user.email);
+      setSent(true);
+      setTimeout(() => setSent(false), 5000);
+    } catch (err) {
+      alert('Failed to resend verification email. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-amber-500/10 border-b border-amber-500/20" role="alert">
+      <div className="container mx-auto px-6 py-3">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center space-x-3">
+            <Mail className="w-5 h-5 text-amber-400 flex-shrink-0" aria-hidden="true" />
+            <p className="text-amber-200 text-sm">
+              Please verify your email address to unlock all features.
+            </p>
+          </div>
+          <button
+            onClick={handleResend}
+            disabled={loading || sent}
+            className="flex items-center space-x-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 px-4 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+            aria-busy={loading}
+          >
+            {loading ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />
+                <span>Sending...</span>
+              </>
+            ) : sent ? (
+              <>
+                <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                <span>Email Sent!</span>
+              </>
+            ) : (
+              <>
+                <Mail className="w-4 h-4" aria-hidden="true" />
+                <span>Resend Verification</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -1544,6 +1703,7 @@ function App() {
       <div className="min-h-screen bg-slate-950">
         <BrowserRouter>
           <Navigation />
+          <EmailVerificationBanner />
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/login" element={<LoginPage />} />
@@ -1551,6 +1711,7 @@ function App() {
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/scan" element={
               <ProtectedRoute>
                 <ScanPage />

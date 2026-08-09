@@ -41,6 +41,10 @@ class User(BaseModel):
     # Password reset fields
     password_reset_token: Optional[str] = None
     password_reset_expires: Optional[datetime] = None
+    # Email verification fields
+    email_verified: bool = Field(default=False)
+    email_verification_token: Optional[str] = None
+    email_verification_expires: Optional[datetime] = None
 
 
 class UserCreate(BaseModel):
@@ -79,6 +83,7 @@ class UserProfile(BaseModel):
     current_period_start: Optional[datetime] = None
     current_period_end: Optional[datetime] = None
     created_at: datetime
+    email_verified: bool = False
 
 
 # Password Reset Models
@@ -95,5 +100,22 @@ class ResetPasswordRequest(BaseModel):
 
 class PasswordResetResponse(BaseModel):
     """Response model for password reset operations."""
+    message: str
+    success: bool
+
+
+# Email Verification Models
+class ResendVerificationRequest(BaseModel):
+    """Request model for resending verification email."""
+    email: EmailStr
+
+
+class VerifyEmailRequest(BaseModel):
+    """Request model for email verification."""
+    token: str
+
+
+class EmailVerificationResponse(BaseModel):
+    """Response model for email verification operations."""
     message: str
     success: bool

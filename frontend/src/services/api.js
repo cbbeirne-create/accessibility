@@ -130,6 +130,35 @@ export const authAPI = {
     });
     return response.data;
   },
+
+  /**
+   * Verify email with token
+   * @param {string} token 
+   * @returns {Promise<{message: string, success: boolean}>}
+   */
+  verifyEmail: async (token) => {
+    const response = await api.post('/auth/verify-email', { token });
+    return response.data;
+  },
+
+  /**
+   * Resend verification email
+   * @param {string} email 
+   * @returns {Promise<{message: string, success: boolean}>}
+   */
+  resendVerification: async (email) => {
+    const response = await api.post('/auth/resend-verification', { email });
+    return response.data;
+  },
+
+  /**
+   * Get email verification status
+   * @returns {Promise<{email_verified: boolean, email: string}>}
+   */
+  getVerificationStatus: async () => {
+    const response = await api.get('/auth/verification-status');
+    return response.data;
+  },
 };
 
 // ============================================

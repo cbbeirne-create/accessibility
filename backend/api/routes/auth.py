@@ -20,9 +20,15 @@ from ...core.security import (
 from ...models.user import (
     User, UserCreate, UserLogin, UserProfile,
     Token, UserPlan,
-    ForgotPasswordRequest, ResetPasswordRequest, PasswordResetResponse
+    ForgotPasswordRequest, ResetPasswordRequest, PasswordResetResponse,
+    ResendVerificationRequest, VerifyEmailRequest, EmailVerificationResponse
 )
-from ...services.email_service import send_password_reset_email, generate_password_reset_token
+from ...services.email_service import (
+    send_password_reset_email, 
+    generate_password_reset_token,
+    send_verification_email,
+    generate_verification_token
+)
 
 router = APIRouter(prefix="/auth")
 
@@ -105,7 +111,7 @@ def create_stripe_customer(email: str, name=None):
 
 @router.post("/signup", response_model=Token)
 async def signup(user_data: UserCreate):
-    """Create new user account."""
+    """Create new user account and send verification email."""
     try:
         existing_user = await get_user_by_email(user_data.email)
         if existing_user:
@@ -114,6 +120,10 @@ async def signup(user_data: UserCreate):
         stripe_customer = create_stripe_customer(user_data.email, user_data.full_name)
         stripe_customer_id = stripe_customer.id if stripe_customer else None
         
+        # Generate email verification token
+        verification_token = generate_verification_token()
+        verification_expires = datetime.utcnow() + timedelta(hours=24)
+        
         hashed_password = get_password_hash(user_data.password)
         user = User(
             email=user_data.email,
@@ -121,12 +131,23 @@ async def signup(user_data: UserCreate):
             hashed_password=hashed_password,
             stripe_customer_id=stripe_customer_id,
             current_period_start=datetime.utcnow(),
-            current_period_end=datetime.utcnow() + timedelta(days=30)
+            current_period_end=datetime.utcnow() + timedelta(days=30),
+            email_verified=False,
+            email_verification_token=verification_token,
+            email_verification_expires=verification_expires
         )
         
         user_data_dict = user.dict()
         user_data_dict['email'] = str(user_data_dict['email'])
         await db.users.insert_one(user_data_dict)
+        
+        # Send verification email
+        user_name = user_data.full_name or str(user_data.email).split('@')[0]
+        send_verification_email(
+            email=str(user_data.email),
+            verification_token=verification_token,
+            user_name=user_name
+        )
         
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
@@ -284,6 +305,126 @@ async def verify_reset_token(token: str):
     return {"valid": True, "message": "Token is valid"}
 
 
+@router.post("/verify-email", response_model=EmailVerificationResponse)
+async def verify_email(request: VerifyEmailRequest):
+    """Verify user email with token."""
+    try:
+        user = await db.users.find_one({"email_verification_token": request.token})
+        
+        if not user:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid or expired verification token."
+            )
+        
+        # Check if already verified
+        if user.get("email_verified"):
+            return EmailVerificationResponse(
+                message="Your email is already verified.",
+                success=True
+            )
+        
+        # Check expiration
+        expires_at = user.get("email_verification_expires")
+        if expires_at:
+            if isinstance(expires_at, str):
+                expires_at = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+            
+            if datetime.utcnow() > expires_at:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Verification link has expired. Please request a new one."
+                )
+        
+        # Mark email as verified
+        await db.users.update_one(
+            {"id": user["id"]},
+            {"$set": {
+                "email_verified": True,
+                "email_verification_token": None,
+                "email_verification_expires": None
+            }}
+        )
+        
+        logging.info(f"Email verified for user {user['id']}")
+        
+        return EmailVerificationResponse(
+            message="Your email has been verified successfully!",
+            success=True
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Email verification error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred during verification. Please try again."
+        )
+
+
+@router.post("/resend-verification", response_model=EmailVerificationResponse)
+async def resend_verification(request: ResendVerificationRequest):
+    """Resend verification email to user."""
+    try:
+        user = await get_user_by_email(request.email)
+        
+        if not user:
+            # Don't reveal if email exists
+            return EmailVerificationResponse(
+                message="If an account exists with this email, a verification link will be sent.",
+                success=True
+            )
+        
+        # Check if already verified
+        if user.get("email_verified"):
+            return EmailVerificationResponse(
+                message="Your email is already verified.",
+                success=True
+            )
+        
+        # Generate new verification token
+        verification_token = generate_verification_token()
+        verification_expires = datetime.utcnow() + timedelta(hours=24)
+        
+        await db.users.update_one(
+            {"id": user["id"]},
+            {"$set": {
+                "email_verification_token": verification_token,
+                "email_verification_expires": verification_expires
+            }}
+        )
+        
+        # Send verification email
+        user_name = user.get("full_name") or str(user["email"]).split("@")[0]
+        send_verification_email(
+            email=str(user["email"]),
+            verification_token=verification_token,
+            user_name=user_name
+        )
+        
+        return EmailVerificationResponse(
+            message="Verification email sent! Please check your inbox.",
+            success=True
+        )
+        
+    except Exception as e:
+        logging.error(f"Resend verification error: {e}")
+        return EmailVerificationResponse(
+            message="If an account exists with this email, a verification link will be sent.",
+            success=True
+        )
+
+
+@router.get("/verification-status")
+async def get_verification_status(current_user: User = Depends(get_current_user)):
+    """Get email verification status for current user."""
+    return {
+        "email_verified": current_user.email_verified,
+        "email": current_user.email
+    }
+
+
 @router.get("/me", response_model=UserProfile)
 async def get_current_user_profile(current_user: User = Depends(get_current_user)):
     """Get current user profile with subscription info."""
@@ -310,5 +451,6 @@ async def get_current_user_profile(current_user: User = Depends(get_current_user
         scans_remaining=scans_remaining,
         current_period_start=current_user.current_period_start,
         current_period_end=current_user.current_period_end,
-        created_at=current_user.created_at
+        created_at=current_user.created_at,
+        email_verified=current_user.email_verified
     )

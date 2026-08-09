@@ -20,6 +20,9 @@ Auditly is a full-stack SaaS application for scanning website accessibility. It 
 - ✅ Auth context for state management
 - ✅ Forgot Password flow (email reset link)
 - ✅ Reset Password page with token validation
+- ✅ Email verification on signup
+- ✅ Verification banner for unverified users
+- ✅ Resend verification email
 
 ### 2. Subscription & Paywall System
 - ✅ Free plan: 2 scans/month
@@ -148,8 +151,8 @@ REACT_APP_BACKEND_URL=https://...
 - [ ] Monthly scan count reset (cron job or webhook)
 
 ### P1 - Important
+- ✅ Email verification on signup (COMPLETED)
 - [ ] Add real SendGrid API key for email sending (currently mocked)
-- [ ] Email verification on signup
 - [ ] Update ScanResultsPage with premium dark theme styling
 
 ### P2 - Nice to Have
