@@ -6,13 +6,13 @@
  * - Login/Signup/Logout functions
  * - Loading state for auth operations
  * - Protected route support
- * 
+ *
  * Accessibility: This context maintains proper loading states
  * to ensure screen readers receive appropriate feedback.
  */
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { Navigate } from 'react-router-dom';
-import { authAPI } from '../services/api';
+import { authAPI, setAuthHandlers, getToken as apiGetToken, setToken as apiSetToken } from '../services/api';
 
 // Create the context
 const AuthContext = createContext(null);
@@ -36,27 +36,89 @@ export const useAuth = () => {
  */
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('access_token'));
+  const [loading, setLoading] = useState(true); // initial bootstrap loading
+  const [refreshingUser, setRefreshingUser] = useState(false); // local refresh flag for profile updates
+  const [token, setTokenState] = useState(null);
 
-  // Load user profile on mount or token change
+  // Helper to persist token via api helpers and update state
+  const persistToken = (t) => {
+    try {
+      apiSetToken(t);
+    } catch (e) {
+      // ignore storage errors
+      console.warn('Failed to persist token', e);
+    }
+    setTokenState(t || null);
+  };
+
+  // Initialize: read token from storage and load profile (guard SSR)
   useEffect(() => {
-    const loadUser = async () => {
-      if (token) {
+    let mounted = true;
+
+    const init = async () => {
+      let t = null;
+      try {
+        t = apiGetToken();
+      } catch (e) {
+        // ignore
+      }
+
+      if (!mounted) return;
+      setTokenState(t);
+
+      if (t) {
         try {
           const userData = await authAPI.getProfile();
+          if (!mounted) return;
           setUser(userData);
         } catch (error) {
-          // Token is invalid or expired
           console.error('Failed to load user profile:', error);
-          logout();
+          try { await authAPI.logout(); } catch (e) { /* ignore */ }
+          persistToken(null);
+          setUser(null);
         }
       }
-      setLoading(false);
+
+      if (mounted) setLoading(false);
     };
 
-    loadUser();
-  }, [token]);
+    init();
+
+    // Sync across tabs: listen for access_token changes in localStorage (apiSetToken writes there)
+    const onStorage = (e) => {
+      if (e.key === 'access_token') {
+        const newToken = e.newValue;
+        setTokenState(newToken);
+        if (!newToken) setUser(null);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', onStorage);
+    }
+
+    return () => {
+      mounted = false;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', onStorage);
+      }
+    };
+  }, []);
+
+  // Register auth handlers with API client so refresh/logout events update context
+  useEffect(() => {
+    setAuthHandlers({
+      onLogin: (newToken) => {
+        // when API refresh obtains a new token, persist it and optionally reload profile
+        persistToken(newToken);
+      },
+      onLogout: () => {
+        // API signalled that refresh failed - ensure client clears state
+        persistToken(null);
+        setUser(null);
+      },
+    });
+  }, []);
 
   /**
    * Login user with email and password
@@ -68,15 +130,14 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await authAPI.login(email, password);
       const { access_token } = data;
-      
-      // Store token
-      localStorage.setItem('access_token', access_token);
-      setToken(access_token);
-      
+
+      // Store token and update state
+      persistToken(access_token);
+
       // Fetch user profile
       const userData = await authAPI.getProfile();
       setUser(userData);
-      
+
       return { success: true };
     } catch (error) {
       return { 
@@ -99,8 +160,7 @@ export const AuthProvider = ({ children }) => {
       const { access_token } = data;
       
       // Store token
-      localStorage.setItem('access_token', access_token);
-      setToken(access_token);
+      persistToken(access_token);
       
       // Fetch user profile
       const userData = await authAPI.getProfile();
@@ -116,28 +176,48 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Logout user - clears token and user data
+   * Logout user - clears token and user data. Attempts server-side revoke if available.
    */
-  const logout = () => {
-    localStorage.removeItem('access_token');
-    setToken(null);
+  const logout = async () => {
+    try {
+      await authAPI.logout();
+    } catch (e) {
+      // ignore server errors on logout
+    }
+    try { persistToken(null); } catch (e) {}
     setUser(null);
   };
 
   /**
    * Refresh user profile data
-   * Useful after plan upgrades or profile updates
+   * Useful after joining/leaving teams, plan upgrades, or profile updates.
+   * Uses a separate `refreshingUser` flag so we don't show the global bootstrap loader.
+   * Returns the refreshed user object on success, or null on failure.
    */
-  const refreshUser = async () => {
-    if (token) {
-      try {
-        const userData = await authAPI.getProfile();
-        setUser(userData);
-      } catch (error) {
-        console.error('Failed to refresh user:', error);
-      }
+  const refreshUser = useCallback(async () => {
+    const currentToken = apiGetToken();
+    if (!currentToken) {
+      setUser(null);
+      return null;
     }
-  };
+
+    try {
+      setRefreshingUser(true);
+      const userData = await authAPI.getProfile();
+      setUser(userData);
+      return userData;
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+      if (error.response?.status === 401) {
+        try { await authAPI.logout(); } catch (e) {}
+        persistToken(null);
+        setUser(null);
+      }
+      return null;
+    } finally {
+      setRefreshingUser(false);
+    }
+  }, [token]);
 
   const value = {
     user,
@@ -145,6 +225,7 @@ export const AuthProvider = ({ children }) => {
     signup,
     logout,
     loading,
+    refreshingUser,
     isAuthenticated: !!user,
     refreshUser,
   };
