@@ -36,10 +36,11 @@ export const useAuth = () => {
  */
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // initial bootstrap loading
+  const [refreshingUser, setRefreshingUser] = useState(false); // local refresh flag for profile updates
   const [token, setToken] = useState(localStorage.getItem('access_token'));
 
-  // Load user profile on mount or token change
+  // Load user profile on mount or token change (initial bootstrap)
   useEffect(() => {
     const loadUser = async () => {
       if (token) {
@@ -126,8 +127,9 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Refresh user profile data
-   * Useful after plan upgrades or profile updates
-   * Returns the refreshed user object on success, or null on failure
+   * Useful after joining/leaving teams, plan upgrades, or profile updates.
+   * Uses a separate `refreshingUser` flag so we don't show the global bootstrap loader.
+   * Returns the refreshed user object on success, or null on failure.
    */
   const refreshUser = useCallback(async () => {
     const currentToken = localStorage.getItem('access_token');
@@ -138,8 +140,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      // Optionally set loading while refreshing to provide UI feedback
-      setLoading(true);
+      setRefreshingUser(true);
       const userData = await authAPI.getProfile();
       setUser(userData);
       return userData;
@@ -147,7 +148,7 @@ export const AuthProvider = ({ children }) => {
       console.error('Failed to refresh user:', error);
       return null;
     } finally {
-      setLoading(false);
+      setRefreshingUser(false);
     }
   }, [token]);
 
@@ -157,6 +158,7 @@ export const AuthProvider = ({ children }) => {
     signup,
     logout,
     loading,
+    refreshingUser,
     isAuthenticated: !!user,
     refreshUser,
   };
