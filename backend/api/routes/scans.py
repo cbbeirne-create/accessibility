@@ -109,6 +109,173 @@ async def create_scan_request(
         raise HTTPException(status_code=500, detail="Failed to create scan request")
 
 
+# ============================================
+# Static routes MUST be defined before parameterized routes
+# ============================================
+
+@router.get("/scans/stats")
+async def get_scan_stats(current_user: User = Depends(get_current_user)):
+    """
+    Get overall scan statistics for the user.
+    Includes total scans, average score, score trend over time.
+    """
+    try:
+        scans = await db.scan_requests.find({
+            "user_id": current_user.id,
+            "status": "completed"
+        }).sort("createdAt", -1).to_list(100)
+        
+        if not scans:
+            return {
+                "total_scans": 0,
+                "average_score": 0,
+                "best_score": 0,
+                "worst_score": 0,
+                "unique_urls": 0,
+                "score_history": [],
+                "recent_trend": None
+            }
+        
+        scores = [s.get("score", 0) for s in scans if s.get("score") is not None]
+        urls = list(set(s.get("url") for s in scans))
+        
+        score_history = []
+        for scan in scans[:10]:
+            score_history.append({
+                "date": scan.get("createdAt"),
+                "score": scan.get("score"),
+                "url": scan.get("url")
+            })
+        score_history.reverse()
+        
+        recent_scores = scores[:5] if len(scores) >= 5 else scores
+        recent_trend = None
+        if len(recent_scores) >= 2:
+            avg_recent = sum(recent_scores[:3]) / 3 if len(recent_scores) >= 3 else recent_scores[0]
+            avg_older = sum(recent_scores[-3:]) / 3 if len(recent_scores) >= 3 else recent_scores[-1]
+            trend_direction = "up" if avg_recent > avg_older else "down" if avg_recent < avg_older else "stable"
+            recent_trend = {
+                "direction": trend_direction,
+                "recent_average": round(avg_recent, 1),
+                "older_average": round(avg_older, 1)
+            }
+        
+        return {
+            "total_scans": len(scans),
+            "average_score": round(sum(scores) / len(scores), 1) if scores else 0,
+            "best_score": max(scores) if scores else 0,
+            "worst_score": min(scores) if scores else 0,
+            "unique_urls": len(urls),
+            "score_history": score_history,
+            "recent_trend": recent_trend
+        }
+        
+    except Exception as e:
+        logging.error(f"Error fetching scan stats: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch scan statistics")
+
+
+@router.get("/scans/urls")
+async def get_scanned_urls(current_user: User = Depends(get_current_user)):
+    """Get list of unique URLs the user has scanned with scan counts."""
+    try:
+        pipeline = [
+            {"$match": {"user_id": current_user.id, "status": "completed"}},
+            {"$group": {
+                "_id": "$url",
+                "scan_count": {"$sum": 1},
+                "latest_scan": {"$max": "$createdAt"},
+                "latest_score": {"$last": "$score"},
+                "avg_score": {"$avg": "$score"}
+            }},
+            {"$sort": {"latest_scan": -1}},
+            {"$limit": 50}
+        ]
+        
+        results = await db.scan_requests.aggregate(pipeline).to_list(50)
+        
+        urls = []
+        for r in results:
+            urls.append({
+                "url": r["_id"],
+                "scan_count": r["scan_count"],
+                "latest_scan": r["latest_scan"],
+                "latest_score": r["latest_score"],
+                "avg_score": round(r["avg_score"], 1) if r["avg_score"] else 0
+            })
+        
+        return {"urls": urls, "total": len(urls)}
+        
+    except Exception as e:
+        logging.error(f"Error fetching scanned URLs: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch scanned URLs")
+
+
+@router.get("/scans/history/by-url")
+async def get_scan_history_by_url_early(
+    url: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Get scan history for a specific URL."""
+    try:
+        normalized_url = url.rstrip('/')
+        
+        scans = await db.scan_requests.find({
+            "user_id": current_user.id,
+            "status": "completed",
+            "$or": [
+                {"url": url},
+                {"url": normalized_url},
+                {"url": url + "/"},
+                {"url": normalized_url + "/"}
+            ]
+        }).sort("createdAt", -1).to_list(100)
+        
+        if not scans:
+            return {"url": url, "total_scans": 0, "scans": [], "trend": None}
+        
+        scores = [s.get("score", 0) for s in scans if s.get("score") is not None]
+        
+        trend = None
+        if len(scores) >= 2:
+            latest_score = scores[0]
+            previous_score = scores[1]
+            change = latest_score - previous_score
+            avg_score = sum(scores) / len(scores)
+            
+            trend = {
+                "direction": "up" if change > 0 else "down" if change < 0 else "stable",
+                "change": change,
+                "change_percent": round((change / previous_score * 100), 1) if previous_score > 0 else 0,
+                "average_score": round(avg_score, 1),
+                "best_score": max(scores),
+                "worst_score": min(scores),
+                "total_scans": len(scores)
+            }
+        
+        formatted_scans = []
+        for scan in scans:
+            formatted_scans.append({
+                "id": scan.get("id"),
+                "url": scan.get("url"),
+                "score": scan.get("score"),
+                "status": scan.get("status"),
+                "createdAt": scan.get("createdAt"),
+                "tool": scan.get("tool"),
+                "issues_summary": {
+                    "failed": len(scan.get("issues", {}).get("failed", [])),
+                    "passed": len(scan.get("issues", {}).get("passed", [])),
+                    "incomplete": len(scan.get("issues", {}).get("incomplete", []))
+                } if scan.get("issues") else None
+            })
+        
+        return {"url": url, "total_scans": len(formatted_scans), "scans": formatted_scans, "trend": trend}
+        
+    except Exception as e:
+        logging.error(f"Error fetching scan history: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch scan history")
+
+
 @router.get("/scans/{scan_id}", response_model=ScanRequest)
 async def get_scan_request(scan_id: str, current_user: User = Depends(get_current_user)):
     """Get a specific scan request by ID (user can only access their own scans)."""
@@ -313,3 +480,117 @@ async def get_external_apis_status():
             "status": "ready" if settings.ACCESSIBE_API_KEY else "api_key_required"
         }
     }
+
+
+
+# ============================================
+# Scan Comparison Endpoint
+# ============================================
+
+@router.get("/scans/compare/{scan_id_1}/{scan_id_2}")
+async def compare_scans(
+    scan_id_1: str,
+    scan_id_2: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Compare two scans side by side.
+    Returns detailed comparison including fixed issues, new issues, and unchanged issues.
+    """
+    try:
+        # Fetch both scans
+        scan1 = await db.scan_requests.find_one({
+            "id": scan_id_1,
+            "user_id": current_user.id
+        })
+        scan2 = await db.scan_requests.find_one({
+            "id": scan_id_2,
+            "user_id": current_user.id
+        })
+        
+        if not scan1 or not scan2:
+            raise HTTPException(status_code=404, detail="One or both scans not found")
+        
+        # Determine which scan is older/newer
+        scan1_date = scan1.get("createdAt")
+        scan2_date = scan2.get("createdAt")
+        
+        if scan1_date > scan2_date:
+            older_scan, newer_scan = scan2, scan1
+        else:
+            older_scan, newer_scan = scan1, scan2
+        
+        # Get issues from both scans
+        older_issues = older_scan.get("issues", {}).get("failed", [])
+        newer_issues = newer_scan.get("issues", {}).get("failed", [])
+        
+        # Create sets of issue IDs for comparison
+        older_issue_ids = {issue.get("id") for issue in older_issues}
+        newer_issue_ids = {issue.get("id") for issue in newer_issues}
+        
+        # Calculate differences
+        fixed_issue_ids = older_issue_ids - newer_issue_ids
+        new_issue_ids = newer_issue_ids - older_issue_ids
+        unchanged_issue_ids = older_issue_ids & newer_issue_ids
+        
+        # Get full issue details
+        fixed_issues = [i for i in older_issues if i.get("id") in fixed_issue_ids]
+        new_issues = [i for i in newer_issues if i.get("id") in new_issue_ids]
+        unchanged_issues = [i for i in newer_issues if i.get("id") in unchanged_issue_ids]
+        
+        # Score comparison
+        older_score = older_scan.get("score", 0)
+        newer_score = newer_scan.get("score", 0)
+        score_change = newer_score - older_score
+        
+        return {
+            "comparison": {
+                "older_scan": {
+                    "id": older_scan.get("id"),
+                    "url": older_scan.get("url"),
+                    "score": older_score,
+                    "createdAt": older_scan.get("createdAt"),
+                    "total_failed": len(older_issues),
+                    "total_passed": len(older_scan.get("issues", {}).get("passed", [])),
+                    "total_incomplete": len(older_scan.get("issues", {}).get("incomplete", []))
+                },
+                "newer_scan": {
+                    "id": newer_scan.get("id"),
+                    "url": newer_scan.get("url"),
+                    "score": newer_score,
+                    "createdAt": newer_scan.get("createdAt"),
+                    "total_failed": len(newer_issues),
+                    "total_passed": len(newer_scan.get("issues", {}).get("passed", [])),
+                    "total_incomplete": len(newer_scan.get("issues", {}).get("incomplete", []))
+                },
+                "score_change": score_change,
+                "score_change_percent": round((score_change / older_score * 100), 1) if older_score > 0 else 0,
+                "improved": score_change > 0
+            },
+            "issues": {
+                "fixed": {
+                    "count": len(fixed_issues),
+                    "items": fixed_issues[:20]  # Limit to 20 for performance
+                },
+                "new": {
+                    "count": len(new_issues),
+                    "items": new_issues[:20]
+                },
+                "unchanged": {
+                    "count": len(unchanged_issues),
+                    "items": unchanged_issues[:20]
+                }
+            },
+            "summary": {
+                "issues_fixed": len(fixed_issues),
+                "new_issues": len(new_issues),
+                "unchanged_issues": len(unchanged_issues),
+                "net_change": len(fixed_issues) - len(new_issues)
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error comparing scans: {e}")
+        raise HTTPException(status_code=500, detail="Failed to compare scans")

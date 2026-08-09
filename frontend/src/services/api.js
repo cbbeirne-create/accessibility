@@ -239,6 +239,45 @@ export const scansAPI = {
     });
     return response.data;
   },
+
+  /**
+   * Get scan history for a specific URL
+   * @param {string} url 
+   * @returns {Promise<{url: string, total_scans: number, scans: Array, trend: Object}>}
+   */
+  getHistoryByUrl: async (url) => {
+    const response = await api.get('/scans/history/by-url', { params: { url } });
+    return response.data;
+  },
+
+  /**
+   * Compare two scans
+   * @param {string} scanId1 
+   * @param {string} scanId2 
+   * @returns {Promise<Object>}
+   */
+  compare: async (scanId1, scanId2) => {
+    const response = await api.get(`/scans/compare/${scanId1}/${scanId2}`);
+    return response.data;
+  },
+
+  /**
+   * Get overall scan statistics
+   * @returns {Promise<Object>}
+   */
+  getStats: async () => {
+    const response = await api.get('/scans/stats');
+    return response.data;
+  },
+
+  /**
+   * Get list of unique scanned URLs
+   * @returns {Promise<{urls: Array, total: number}>}
+   */
+  getScannedUrls: async () => {
+    const response = await api.get('/scans/urls');
+    return response.data;
+  },
 };
 
 // ============================================

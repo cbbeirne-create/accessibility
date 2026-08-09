@@ -103,6 +103,19 @@ const Navigation = () => {
                     My Scans
                   </Link>
                   <Link 
+                    to="/analytics" 
+                    data-testid="nav-analytics"
+                    role="menuitem"
+                    aria-current={isActive('/analytics') ? 'page' : undefined}
+                    className={`${linkBaseClasses} ${
+                      isActive('/analytics') 
+                        ? 'bg-slate-800 text-white' 
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                    }`}
+                  >
+                    Analytics
+                  </Link>
+                  <Link 
                     to="/pricing" 
                     data-testid="nav-pricing"
                     role="menuitem"

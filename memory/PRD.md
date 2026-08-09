@@ -156,16 +156,15 @@ REACT_APP_BACKEND_URL=https://...
 - [ ] Update ScanResultsPage with premium dark theme styling
 
 ### P2 - Nice to Have
+- ✅ Refactor backend server.py into modular structure (COMPLETED)
+- ✅ Scan comparison / history tracking with Analytics page (COMPLETED)
 - [ ] Refactor monolithic App.js into /pages, /components, /contexts
-- [ ] Refactor server.py into modular structure with APIRouter
 - [ ] Scheduled recurring scans
 - [ ] Team/organization accounts
-- [ ] Analytics dashboard for scan trends
 
 ### P3 - Future
 - [ ] External API integrations (WAVE, EqualWeb, AccessiBe)
 - [ ] Webhook notifications for scan completion
-- [ ] Comparison reports between scans
 - [ ] White-label reports
 
 ## Known Limitations
