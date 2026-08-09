@@ -1,11 +1,14 @@
 /**
  * Centralized API Service
- * 
+ *
  * Creates an Axios instance with:
  * - Base URL configuration from environment
  * - JWT token interceptor for authenticated requests
  * - Response error handling
- * - Token refresh/logout on 401 errors
+ * - Token refresh/logout on 401 errors (deduplicated)
+ *
+ * Exposes `setAuthHandlers` so the auth context can register callbacks
+ * (onLogin/onLogout) to keep client state in sync when tokens are refreshed or revoked.
  */
 import axios from 'axios';
 
@@ -20,38 +23,106 @@ const api = axios.create({
   timeout: 30000, // 30 second timeout
 });
 
-// Request interceptor - adds JWT token to requests
+// ------------ Auth handler hooks (registered by AuthContext) ------------
+let authHandlers = {
+  onLogout: null, // called when refresh fails and we need to clear client state
+  onLogin: null,  // optional: called when a new token is obtained
+};
+
+export const setAuthHandlers = (handlers = {}) => {
+  authHandlers = { ...authHandlers, ...handlers };
+};
+
+// Helper to safely read token from storage (so cross-tab updates are respected)
+const getToken = () => {
+  try {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('access_token');
+  } catch (e) {
+    return null;
+  }
+};
+
+// Helper to persist token
+const setToken = (token) => {
+  try {
+    if (typeof window === 'undefined') return;
+    if (token) localStorage.setItem('access_token', token);
+    else localStorage.removeItem('access_token');
+  } catch (e) {
+    // ignore storage errors
+  }
+};
+
+// Attach token to outgoing requests
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
+    const token = getToken();
     if (token) {
+      config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor - handles errors globally
+// Token refresh dedupe
+let isRefreshing = false;
+let refreshPromise = null;
+
+// Response interceptor - handles errors globally and attempts refresh on 401
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    // Handle 401 Unauthorized - token expired or invalid
-    if (error.response?.status === 401) {
-      // Clear token and redirect to login
-      localStorage.removeItem('access_token');
-      
-      // Only redirect if not already on auth pages
-      const currentPath = window.location.pathname;
-      if (!currentPath.includes('/login') && 
-          !currentPath.includes('/signup') && 
-          !currentPath.includes('/forgot-password') &&
-          !currentPath.includes('/reset-password')) {
-        window.location.href = '/login';
+  async (error) => {
+    const originalRequest = error.config;
+
+    // If request config has _retry flag, do not retry again
+    if (error.response?.status === 401 && !originalRequest?._retry) {
+      // Attempt refresh
+      if (!isRefreshing) {
+        isRefreshing = true;
+        refreshPromise = (async () => {
+          try {
+            // Try to refresh via auth endpoint. This may rely on httpOnly refresh cookie
+            const res = await api.post('/auth/refresh');
+            const newToken = res.data?.access_token;
+            if (newToken) {
+              setToken(newToken);
+              if (typeof authHandlers.onLogin === 'function') {
+                try { authHandlers.onLogin(newToken); } catch (e) { /* ignore */ }
+              }
+              return newToken;
+            }
+            // If no token returned, treat as failure
+            throw new Error('No token from refresh');
+          } catch (refreshErr) {
+            // Refresh failed -> invoke logout handler if present
+            if (typeof authHandlers.onLogout === 'function') {
+              try { authHandlers.onLogout(); } catch (e) { /* ignore */ }
+            }
+            throw refreshErr;
+          } finally {
+            isRefreshing = false;
+            refreshPromise = null;
+          }
+        })();
+      }
+
+      try {
+        const newToken = await refreshPromise;
+        // Retry original request with new token
+        originalRequest._retry = true;
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        // If refresh failed, propagate original error (logout handler already called)
+        return Promise.reject(error);
       }
     }
+
+    // For other errors or retry attempts, just reject
     return Promise.reject(error);
   }
 );
@@ -59,26 +130,12 @@ api.interceptors.response.use(
 // ============================================
 // Authentication API
 // ============================================
-
 export const authAPI = {
-  /**
-   * Login user with email and password
-   * @param {string} email 
-   * @param {string} password 
-   * @returns {Promise<{access_token: string, token_type: string}>}
-   */
   login: async (email, password) => {
     const response = await api.post('/auth/login', { email, password });
     return response.data;
   },
 
-  /**
-   * Register new user
-   * @param {string} email 
-   * @param {string} password 
-   * @param {string} fullName 
-   * @returns {Promise<{access_token: string, token_type: string}>}
-   */
   signup: async (email, password, fullName) => {
     const response = await api.post('/auth/signup', {
       email,
@@ -88,511 +145,121 @@ export const authAPI = {
     return response.data;
   },
 
-  /**
-   * Get current user profile
-   * @returns {Promise<UserProfile>}
-   */
   getProfile: async () => {
     const response = await api.get('/auth/me');
     return response.data;
   },
 
-  /**
-   * Request password reset email
-   * @param {string} email 
-   * @returns {Promise<{message: string, success: boolean}>}
-   */
-  forgotPassword: async (email) => {
-    const response = await api.post('/auth/forgot-password', { email });
+  // Refresh endpoint - expected to return a fresh access token (or set httpOnly cookie)
+  refresh: async () => {
+    const response = await api.post('/auth/refresh');
     return response.data;
   },
 
-  /**
-   * Verify if reset token is valid
-   * @param {string} token 
-   * @returns {Promise<{valid: boolean, message: string}>}
-   */
-  verifyResetToken: async (token) => {
-    const response = await api.get(`/auth/verify-reset-token?token=${token}`);
-    return response.data;
-  },
-
-  /**
-   * Reset password with token
-   * @param {string} token 
-   * @param {string} newPassword 
-   * @returns {Promise<{message: string, success: boolean}>}
-   */
-  resetPassword: async (token, newPassword) => {
-    const response = await api.post('/auth/reset-password', {
-      token,
-      new_password: newPassword,
-    });
-    return response.data;
-  },
-
-  /**
-   * Verify email with token
-   * @param {string} token 
-   * @returns {Promise<{message: string, success: boolean}>}
-   */
-  verifyEmail: async (token) => {
-    const response = await api.post('/auth/verify-email', { token });
-    return response.data;
-  },
-
-  /**
-   * Resend verification email
-   * @param {string} email 
-   * @returns {Promise<{message: string, success: boolean}>}
-   */
-  resendVerification: async (email) => {
-    const response = await api.post('/auth/resend-verification', { email });
-    return response.data;
-  },
-
-  /**
-   * Get email verification status
-   * @returns {Promise<{email_verified: boolean, email: string}>}
-   */
-  getVerificationStatus: async () => {
-    const response = await api.get('/auth/verification-status');
+  // Logout/revoke endpoint - invalidate refresh tokens server-side if supported
+  logout: async () => {
+    const response = await api.post('/auth/logout');
     return response.data;
   },
 };
 
 // ============================================
-// Scans API
+// Other API groups remain unchanged but go through the same axios instance
 // ============================================
 
 export const scansAPI = {
-  /**
-   * Get all scans for current user
-   * @returns {Promise<Scan[]>}
-   */
   getAll: async () => {
     const response = await api.get('/scans');
     return response.data;
   },
-
-  /**
-   * Get single scan by ID
-   * @param {string} scanId 
-   * @returns {Promise<Scan>}
-   */
   getById: async (scanId) => {
     const response = await api.get(`/scans/${scanId}`);
     return response.data;
   },
-
-  /**
-   * Create new scan request
-   * @param {string} url - URL to scan
-   * @param {string} tool - Scanning tool (default: axe-core)
-   * @returns {Promise<Scan>}
-   */
   create: async (url, tool = 'axe-core') => {
     const response = await api.post('/scans', { url, tool });
     return response.data;
   },
-
-  /**
-   * Delete scan by ID
-   * @param {string} scanId 
-   * @returns {Promise<{message: string}>}
-   */
   delete: async (scanId) => {
     const response = await api.delete(`/scans/${scanId}`);
     return response.data;
   },
-
-  /**
-   * Export scan as PDF
-   * @param {string} scanId 
-   * @returns {Promise<Blob>}
-   */
   exportPDF: async (scanId) => {
-    const response = await api.get(`/scans/${scanId}/export/pdf`, {
-      responseType: 'blob',
-    });
+    const response = await api.get(`/scans/${scanId}/export/pdf`, { responseType: 'blob' });
     return response.data;
   },
-
-  /**
-   * Export scan as JSON
-   * @param {string} scanId 
-   * @returns {Promise<Object>}
-   */
   exportJSON: async (scanId) => {
     const response = await api.get(`/scans/${scanId}/export/json`);
     return response.data;
   },
-
-  /**
-   * Get scan screenshot
-   * @param {string} scanId 
-   * @returns {Promise<Blob>}
-   */
   getScreenshot: async (scanId) => {
-    const response = await api.get(`/scans/${scanId}/screenshot`, {
-      responseType: 'blob',
-    });
+    const response = await api.get(`/scans/${scanId}/screenshot`, { responseType: 'blob' });
     return response.data;
   },
-
-  /**
-   * Get scan history for a specific URL
-   * @param {string} url 
-   * @returns {Promise<{url: string, total_scans: number, scans: Array, trend: Object}>}
-   */
   getHistoryByUrl: async (url) => {
     const response = await api.get('/scans/history/by-url', { params: { url } });
     return response.data;
   },
-
-  /**
-   * Compare two scans
-   * @param {string} scanId1 
-   * @param {string} scanId2 
-   * @returns {Promise<Object>}
-   */
   compare: async (scanId1, scanId2) => {
     const response = await api.get(`/scans/compare/${scanId1}/${scanId2}`);
     return response.data;
   },
-
-  /**
-   * Get overall scan statistics
-   * @returns {Promise<Object>}
-   */
   getStats: async () => {
     const response = await api.get('/scans/stats');
     return response.data;
   },
-
-  /**
-   * Get list of unique scanned URLs
-   * @returns {Promise<{urls: Array, total: number}>}
-   */
   getScannedUrls: async () => {
     const response = await api.get('/scans/urls');
     return response.data;
   },
 };
 
-// ============================================
-// Subscription API
-// ============================================
-
 export const subscriptionAPI = {
-  /**
-   * Create Stripe checkout session for Pro upgrade
-   * @returns {Promise<{checkout_url: string}>}
-   */
   createCheckoutSession: async () => {
     const response = await api.post('/subscription/create-checkout-session');
     return response.data;
   },
 };
 
-// ============================================
-// Scheduled Scans API
-// ============================================
-
 export const scheduledScansAPI = {
-  /**
-   * Get all scheduled scans for current user
-   * @returns {Promise<ScheduledScan[]>}
-   */
-  getAll: async () => {
-    const response = await api.get('/scheduled-scans');
-    return response.data;
-  },
-
-  /**
-   * Get single scheduled scan by ID
-   * @param {string} scheduledId 
-   * @returns {Promise<ScheduledScan>}
-   */
-  getById: async (scheduledId) => {
-    const response = await api.get(`/scheduled-scans/${scheduledId}`);
-    return response.data;
-  },
-
-  /**
-   * Create new scheduled scan
-   * @param {string} url - URL to scan
-   * @param {number} intervalDays - Interval in days between scans
-   * @returns {Promise<ScheduledScan>}
-   */
-  create: async (url, intervalDays) => {
-    const response = await api.post('/scheduled-scans', { 
-      url, 
-      interval_days: intervalDays 
-    });
-    return response.data;
-  },
-
-  /**
-   * Update scheduled scan
-   * @param {string} scheduledId 
-   * @param {Object} data - Update data (url, interval_days, enabled)
-   * @returns {Promise<ScheduledScan>}
-   */
-  update: async (scheduledId, data) => {
-    const response = await api.put(`/scheduled-scans/${scheduledId}`, data);
-    return response.data;
-  },
-
-  /**
-   * Delete scheduled scan
-   * @param {string} scheduledId 
-   * @returns {Promise<{message: string}>}
-   */
-  delete: async (scheduledId) => {
-    const response = await api.delete(`/scheduled-scans/${scheduledId}`);
-    return response.data;
-  },
-
-  /**
-   * Toggle scheduled scan on/off
-   * @param {string} scheduledId 
-   * @returns {Promise<ScheduledScan>}
-   */
-  toggle: async (scheduledId) => {
-    const response = await api.post(`/scheduled-scans/${scheduledId}/toggle`);
-    return response.data;
-  },
-
-  /**
-   * Get scheduled scan limits info
-   * @returns {Promise<{plan: string, limit: number, used: number, remaining: number, can_create: boolean}>}
-   */
-  getLimits: async () => {
-    const response = await api.get('/scheduled-scans/limits/info');
-    return response.data;
-  },
+  getAll: async () => { const response = await api.get('/scheduled-scans'); return response.data; },
+  getById: async (scheduledId) => { const response = await api.get(`/scheduled-scans/${scheduledId}`); return response.data; },
+  create: async (url, intervalDays) => { const response = await api.post('/scheduled-scans', { url, interval_days: intervalDays }); return response.data; },
+  update: async (scheduledId, data) => { const response = await api.put(`/scheduled-scans/${scheduledId}`, data); return response.data; },
+  delete: async (scheduledId) => { const response = await api.delete(`/scheduled-scans/${scheduledId}`); return response.data; },
+  toggle: async (scheduledId) => { const response = await api.post(`/scheduled-scans/${scheduledId}/toggle`); return response.data; },
+  getLimits: async () => { const response = await api.get('/scheduled-scans/limits/info'); return response.data; },
 };
-
-// ============================================
-// Notifications API
-// ============================================
 
 export const notificationsAPI = {
-  /**
-   * Get all notifications for current user
-   * @param {boolean} unreadOnly - Only return unread notifications
-   * @returns {Promise<Notification[]>}
-   */
-  getAll: async (unreadOnly = false) => {
-    const response = await api.get('/notifications', { 
-      params: { unread_only: unreadOnly } 
-    });
-    return response.data;
-  },
-
-  /**
-   * Get unread notification count
-   * @returns {Promise<{count: number}>}
-   */
-  getUnreadCount: async () => {
-    const response = await api.get('/notifications/unread-count');
-    return response.data;
-  },
-
-  /**
-   * Mark notification as read
-   * @param {string} notificationId 
-   * @returns {Promise<{message: string}>}
-   */
-  markAsRead: async (notificationId) => {
-    const response = await api.put(`/notifications/${notificationId}/read`);
-    return response.data;
-  },
-
-  /**
-   * Mark all notifications as read
-   * @returns {Promise<{message: string}>}
-   */
-  markAllAsRead: async () => {
-    const response = await api.put('/notifications/read-all');
-    return response.data;
-  },
-
-  /**
-   * Delete notification
-   * @param {string} notificationId 
-   * @returns {Promise<{message: string}>}
-   */
-  delete: async (notificationId) => {
-    const response = await api.delete(`/notifications/${notificationId}`);
-    return response.data;
-  },
-
-  /**
-   * Clear all notifications
-   * @returns {Promise<{message: string}>}
-   */
-  clearAll: async () => {
-    const response = await api.delete('/notifications/clear-all');
-    return response.data;
-  },
+  getAll: async (unreadOnly = false) => { const response = await api.get('/notifications', { params: { unread_only: unreadOnly } }); return response.data; },
+  getUnreadCount: async () => { const response = await api.get('/notifications/unread-count'); return response.data; },
+  markAsRead: async (notificationId) => { const response = await api.put(`/notifications/${notificationId}/read`); return response.data; },
+  markAllAsRead: async () => { const response = await api.put('/notifications/read-all'); return response.data; },
+  delete: async (notificationId) => { const response = await api.delete(`/notifications/${notificationId}`); return response.data; },
+  clearAll: async () => { const response = await api.delete('/notifications/clear-all'); return response.data; },
 };
-
-// ============================================
-// Health API
-// ============================================
 
 export const healthAPI = {
-  /**
-   * Check API health status
-   * @returns {Promise<{status: string, services: Object}>}
-   */
-  check: async () => {
-    const response = await api.get('/health');
-    return response.data;
-  },
+  check: async () => { const response = await api.get('/health'); return response.data; },
 };
-
-// ============================================
-// Organizations/Team API
-// ============================================
 
 export const organizationsAPI = {
-  /**
-   * Get current user's organization
-   * @returns {Promise<OrganizationProfile | null>}
-   */
-  getCurrent: async () => {
-    const response = await api.get('/organizations/current');
-    return response.data;
-  },
-
-  /**
-   * Create a new organization (Pro only)
-   * @param {string} name - Organization name
-   * @returns {Promise<Organization>}
-   */
-  create: async (name) => {
-    const response = await api.post('/organizations', { name });
-    return response.data;
-  },
-
-  /**
-   * Get organization details with members
-   * @param {string} orgId 
-   * @returns {Promise<OrganizationWithMembers>}
-   */
-  get: async (orgId) => {
-    const response = await api.get(`/organizations/${orgId}`);
-    return response.data;
-  },
-
-  /**
-   * Update organization
-   * @param {string} orgId 
-   * @param {Object} data 
-   * @returns {Promise<Organization>}
-   */
-  update: async (orgId, data) => {
-    const response = await api.put(`/organizations/${orgId}`, data);
-    return response.data;
-  },
-
-  /**
-   * Delete organization (owner only)
-   * @param {string} orgId 
-   * @returns {Promise<{message: string}>}
-   */
-  delete: async (orgId) => {
-    const response = await api.delete(`/organizations/${orgId}`);
-    return response.data;
-  },
-
-  /**
-   * Invite a member to the organization
-   * @param {string} orgId 
-   * @param {string} email 
-   * @returns {Promise<OrganizationInviteInfo>}
-   */
-  inviteMember: async (orgId, email) => {
-    const response = await api.post(`/organizations/${orgId}/invite`, { email });
-    return response.data;
-  },
-
-  /**
-   * Cancel a pending invite
-   * @param {string} orgId 
-   * @param {string} inviteId 
-   * @returns {Promise<{message: string}>}
-   */
-  cancelInvite: async (orgId, inviteId) => {
-    const response = await api.delete(`/organizations/${orgId}/invites/${inviteId}`);
-    return response.data;
-  },
-
-  /**
-   * Get pending invites for current user
-   * @returns {Promise<OrganizationInviteInfo[]>}
-   */
-  getPendingInvites: async () => {
-    const response = await api.get('/organizations/invites/pending');
-    return response.data;
-  },
-
-  /**
-   * Accept an invite
-   * @param {string} token 
-   * @returns {Promise<{message: string}>}
-   */
-  acceptInvite: async (token) => {
-    const response = await api.post(`/organizations/invites/${token}/accept`);
-    return response.data;
-  },
-
-  /**
-   * Decline an invite
-   * @param {string} token 
-   * @returns {Promise<{message: string}>}
-   */
-  declineInvite: async (token) => {
-    const response = await api.post(`/organizations/invites/${token}/decline`);
-    return response.data;
-  },
-
-  /**
-   * Remove a member from the organization
-   * @param {string} orgId 
-   * @param {string} userId 
-   * @returns {Promise<{message: string}>}
-   */
-  removeMember: async (orgId, userId) => {
-    const response = await api.delete(`/organizations/${orgId}/members/${userId}`);
-    return response.data;
-  },
-
-  /**
-   * Leave the current organization (members only)
-   * @returns {Promise<{message: string}>}
-   */
-  leave: async () => {
-    const response = await api.post('/organizations/leave');
-    return response.data;
-  },
-
-  /**
-   * Transfer ownership to another member
-   * @param {string} orgId 
-   * @param {string} newOwnerId 
-   * @returns {Promise<{message: string}>}
-   */
-  transferOwnership: async (orgId, newOwnerId) => {
-    const response = await api.post(`/organizations/${orgId}/transfer-ownership`, { 
-      new_owner_id: newOwnerId 
-    });
-    return response.data;
-  },
+  getCurrent: async () => { const response = await api.get('/organizations/current'); return response.data; },
+  create: async (name) => { const response = await api.post('/organizations', { name }); return response.data; },
+  get: async (orgId) => { const response = await api.get(`/organizations/${orgId}`); return response.data; },
+  update: async (orgId, data) => { const response = await api.put(`/organizations/${orgId}`, data); return response.data; },
+  delete: async (orgId) => { const response = await api.delete(`/organizations/${orgId}`); return response.data; },
+  inviteMember: async (orgId, email) => { const response = await api.post(`/organizations/${orgId}/invite`, { email }); return response.data; },
+  cancelInvite: async (orgId, inviteId) => { const response = await api.delete(`/organizations/${orgId}/invites/${inviteId}`); return response.data; },
+  getPendingInvites: async () => { const response = await api.get('/organizations/invites/pending'); return response.data; },
+  acceptInvite: async (token) => { const response = await api.post(`/organizations/invites/${token}/accept`); return response.data; },
+  declineInvite: async (token) => { const response = await api.post(`/organizations/invites/${token}/decline`); return response.data; },
+  removeMember: async (orgId, userId) => { const response = await api.delete(`/organizations/${orgId}/members/${userId}`); return response.data; },
+  leave: async () => { const response = await api.post('/organizations/leave'); return response.data; },
+  transferOwnership: async (orgId, newOwnerId) => { const response = await api.post(`/organizations/${orgId}/transfer-ownership`, { new_owner_id: newOwnerId }); return response.data; },
 };
 
-// Export the axios instance for custom requests
+// Export the axios instance and helpers
+export { api as axiosInstance, getToken, setToken };
 export default api;
