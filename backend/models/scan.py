@@ -34,6 +34,7 @@ class ScanRequest(BaseModel):
     createdAt: datetime = Field(default_factory=datetime.utcnow)
     error_message: Optional[str] = Field(default=None)
     user_id: str  # Required - linked to authenticated user
+    organization_id: Optional[str] = Field(default=None)  # Team/org the scan belongs to
     # Visual evidence fields
     full_page_screenshot: Optional[str] = Field(default=None)  # Base64 encoded image
     evidence_screenshots: Optional[Dict[str, str]] = Field(default=None)  # Issue ID -> Base64 screenshot

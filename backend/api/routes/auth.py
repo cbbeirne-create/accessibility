@@ -438,19 +438,29 @@ async def get_current_user_profile(current_user: User = Depends(get_current_user
         if user_data:
             current_user = User(**user_data)
     
-    limits = get_user_scan_limits(current_user.plan)
+    # Get effective plan (if in org, inherits owner's plan)
+    effective_plan = current_user.plan
+    if current_user.organization_id:
+        org = await db.organizations.find_one({"id": current_user.organization_id})
+        if org:
+            owner = await db.users.find_one({"id": org["owner_id"]})
+            if owner:
+                effective_plan = UserPlan(owner.get("plan", "free"))
+    
+    limits = get_user_scan_limits(effective_plan)
     scans_remaining = limits["monthly_scans"] - current_user.scans_used_this_month if limits["monthly_scans"] != -1 else -1
     
     return UserProfile(
         id=current_user.id,
         email=current_user.email,
         full_name=current_user.full_name,
-        plan=current_user.plan,
+        plan=effective_plan,  # Return effective plan
         subscription_status=current_user.subscription_status,
         scans_used_this_month=current_user.scans_used_this_month,
         scans_remaining=scans_remaining,
         current_period_start=current_user.current_period_start,
         current_period_end=current_user.current_period_end,
         created_at=current_user.created_at,
-        email_verified=current_user.email_verified
+        email_verified=current_user.email_verified,
+        organization_id=current_user.organization_id
     )

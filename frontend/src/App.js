@@ -39,6 +39,7 @@ import {
   ScanResultsPage,
   ScanAnalyticsPage,
   ScheduledScansPage,
+  TeamPage,
 } from "./pages";
 
 // ============================================
@@ -86,6 +87,11 @@ function App() {
             <Route path="/scheduled-scans" element={
               <ProtectedRoute>
                 <ScheduledScansPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/team" element={
+              <ProtectedRoute>
+                <TeamPage />
               </ProtectedRoute>
             } />
           </Routes>

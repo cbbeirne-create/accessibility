@@ -320,7 +320,145 @@ def send_verification_email(email: str, verification_token: str, user_name: Opti
         logging.error(f"Failed to send verification email: {e}")
         return False
 
+
+async def send_team_invite_email(email: str, org_name: str, inviter_name: str, invite_token: str) -> bool:
+    """
+    Send team invite email via SendGrid.
+    Returns True if email was sent successfully, False otherwise.
+    """
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail, Email, To, Content
+    
+    sendgrid_api_key = settings.SENDGRID_API_KEY
+    sender_email = settings.SENDER_EMAIL
+    frontend_url = settings.FRONTEND_URL
+    
+    # Check if SendGrid is configured
+    if not sendgrid_api_key or sendgrid_api_key.startswith('your_'):
+        logging.warning("SendGrid not configured - team invite email not sent")
+        # In development, log the invite link for testing
+        invite_link = f"{frontend_url}/team?invite={invite_token}"
+        logging.info(f"[DEV] Team invite link for {email}: {invite_link}")
+        return True  # Return True so the flow continues in development
+    
+    invite_link = f"{frontend_url}/team?invite={invite_token}"
+    
+    # Branded HTML email template
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>You're Invited to Join a Team on Auditly</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 40px 20px;">
+                    <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #1e293b; border-radius: 16px; overflow: hidden;">
+                        <!-- Header -->
+                        <tr>
+                            <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, rgba(52, 211, 153, 0.1), rgba(20, 184, 166, 0.1));">
+                                <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #34d399, #14b8a6); border-radius: 16px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+                                    <span style="color: white; font-size: 28px; font-weight: bold;">A</span>
+                                </div>
+                                <h1 style="color: #ffffff; font-size: 24px; margin: 0 0 8px; font-weight: 700;">Auditly</h1>
+                                <p style="color: #94a3b8; font-size: 14px; margin: 0;">Website Accessibility Scanner</p>
+                            </td>
+                        </tr>
+                        
+                        <!-- Content -->
+                        <tr>
+                            <td style="padding: 30px 40px;">
+                                <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 16px; font-weight: 600;">You're Invited!</h2>
+                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+                                    <strong style="color: #34d399;">{inviter_name}</strong> has invited you to join the team <strong style="color: #ffffff;">"{org_name}"</strong> on Auditly.
+                                </p>
+                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+                                    As a team member, you'll have access to shared accessibility scans, reports, and analytics.
+                                </p>
+                                
+                                <!-- CTA Button -->
+                                <table role="presentation" style="width: 100%; margin: 32px 0;">
+                                    <tr>
+                                        <td style="text-align: center;">
+                                            <a href="{invite_link}" 
+                                               style="display: inline-block; padding: 16px 32px; background: linear-gradient(135deg, #34d399, #14b8a6); color: #ffffff; text-decoration: none; font-weight: 600; font-size: 16px; border-radius: 12px; box-shadow: 0 4px 14px rgba(52, 211, 153, 0.25);">
+                                                Accept Invitation
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                
+                                <p style="color: #94a3b8; font-size: 13px; line-height: 1.6; margin: 0 0 16px;">
+                                    This invitation will expire in <strong style="color: #f59e0b;">7 days</strong>.
+                                </p>
+                                
+                                <!-- Fallback Link -->
+                                <div style="background-color: #0f172a; border-radius: 8px; padding: 16px; margin-top: 24px;">
+                                    <p style="color: #64748b; font-size: 12px; margin: 0 0 8px;">
+                                        If the button doesn't work, copy and paste this link:
+                                    </p>
+                                    <p style="color: #34d399; font-size: 12px; margin: 0; word-break: break-all;">
+                                        {invite_link}
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+                        
+                        <!-- Footer -->
+                        <tr>
+                            <td style="padding: 24px 40px; border-top: 1px solid #334155; text-align: center;">
+                                <p style="color: #64748b; font-size: 12px; margin: 0 0 8px;">
+                                    This email was sent by Auditly
+                                </p>
+                                <p style="color: #64748b; font-size: 12px; margin: 0;">
+                                    WCAG 2.1 AA Compliant Accessibility Scanning
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    plain_text = f"""
+    You're Invited to Join a Team on Auditly!
+    
+    {inviter_name} has invited you to join the team "{org_name}" on Auditly.
+    
+    As a team member, you'll have access to shared accessibility scans, reports, and analytics.
+    
+    Click here to accept: {invite_link}
+    
+    This invitation will expire in 7 days.
+    
+    - The Auditly Team
+    """
+    
+    try:
+        message = Mail(
+            from_email=Email(sender_email, "Auditly"),
+            to_emails=To(email),
+            subject=f"You're invited to join {org_name} on Auditly",
+            plain_text_content=Content("text/plain", plain_text),
+            html_content=Content("text/html", html_content)
+        )
+        
+        sg = SendGridAPIClient(sendgrid_api_key)
+        response = sg.send(message)
+        
+        if response.status_code == 202:
+            logging.info(f"Team invite email sent to {email}")
+            return True
+        else:
+            logging.error(f"SendGrid returned status {response.status_code}")
+            return False
             
     except Exception as e:
-        logging.error(f"Failed to send password reset email: {e}")
+        logging.error(f"Failed to send team invite email: {e}")
         return False

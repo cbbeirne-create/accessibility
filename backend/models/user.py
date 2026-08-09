@@ -45,6 +45,8 @@ class User(BaseModel):
     email_verified: bool = Field(default=False)
     email_verification_token: Optional[str] = None
     email_verification_expires: Optional[datetime] = None
+    # Organization/Team field
+    organization_id: Optional[str] = None
 
 
 class UserCreate(BaseModel):
@@ -84,6 +86,7 @@ class UserProfile(BaseModel):
     current_period_end: Optional[datetime] = None
     created_at: datetime
     email_verified: bool = False
+    organization_id: Optional[str] = None
 
 
 # Password Reset Models

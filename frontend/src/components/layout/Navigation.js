@@ -15,7 +15,7 @@
  */
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Shield, Clock } from 'lucide-react';
+import { Shield, Clock, Users } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import SkipLink from './SkipLink';
 import { NotificationBell } from '../common';
@@ -129,6 +129,20 @@ const Navigation = () => {
                   >
                     <Clock className="w-4 h-4" aria-hidden="true" />
                     <span>Scheduled</span>
+                  </Link>
+                  <Link 
+                    to="/team" 
+                    data-testid="nav-team"
+                    role="menuitem"
+                    aria-current={isActive('/team') ? 'page' : undefined}
+                    className={`${linkBaseClasses} flex items-center space-x-1 ${
+                      isActive('/team') 
+                        ? 'bg-slate-800 text-white' 
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <Users className="w-4 h-4" aria-hidden="true" />
+                    <span>Team</span>
                   </Link>
                   <Link 
                     to="/pricing" 

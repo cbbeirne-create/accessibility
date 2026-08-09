@@ -39,9 +39,30 @@ def get_user_scan_limits(plan: UserPlan) -> Dict[str, Any]:
         }
 
 
+async def get_effective_user_plan(user: User) -> UserPlan:
+    """
+    Get user's effective plan considering team membership.
+    If user is in an org, they inherit the owner's plan.
+    """
+    if not user.organization_id:
+        return user.plan
+    
+    # Get organization owner's plan
+    org = await db.organizations.find_one({"id": user.organization_id})
+    if not org:
+        return user.plan
+    
+    owner = await db.users.find_one({"id": org["owner_id"]})
+    if not owner:
+        return user.plan
+    
+    return UserPlan(owner.get("plan", "free"))
+
+
 async def check_scan_limits(user: User) -> bool:
     """Check if user can create more scans this month."""
-    limits = get_user_scan_limits(user.plan)
+    effective_plan = await get_effective_user_plan(user)
+    limits = get_user_scan_limits(effective_plan)
     if limits["monthly_scans"] == -1:
         return True
     return user.scans_used_this_month < limits["monthly_scans"]
@@ -55,13 +76,22 @@ async def increment_user_scan_count(user_id: str):
     )
 
 
+async def get_user_scan_query(user: User) -> Dict[str, Any]:
+    """
+    Get the query for fetching user's scans.
+    If user is in an org, fetch all org scans. Otherwise, fetch personal scans.
+    """
+    if user.organization_id:
+        return {"organization_id": user.organization_id}
+    return {"user_id": user.id, "organization_id": None}
+
+
 @router.get("/scans", response_model=List[ScanRequest])
 async def get_scan_requests(current_user: User = Depends(get_current_user)):
-    """Get all scan requests for the authenticated user."""
+    """Get all scan requests for the authenticated user (or their organization)."""
     try:
-        scan_requests = await db.scan_requests.find(
-            {"user_id": current_user.id}
-        ).sort("createdAt", -1).to_list(100)
+        query = await get_user_scan_query(current_user)
+        scan_requests = await db.scan_requests.find(query).sort("createdAt", -1).to_list(100)
         return [ScanRequest(**scan_request) for scan_request in scan_requests]
     except Exception as e:
         logging.error(f"Error fetching scan requests: {e}")
@@ -78,15 +108,18 @@ async def create_scan_request(
     try:
         can_scan = await check_scan_limits(current_user)
         if not can_scan:
-            limits = get_user_scan_limits(current_user.plan)
+            effective_plan = await get_effective_user_plan(current_user)
+            limits = get_user_scan_limits(effective_plan)
             raise HTTPException(
                 status_code=403, 
-                detail=f"Scan limit exceeded. {current_user.plan.title()} plan allows {limits['monthly_scans']} scans per month. Upgrade to Pro for unlimited scans."
+                detail=f"Scan limit exceeded. {effective_plan.title()} plan allows {limits['monthly_scans']} scans per month. Upgrade to Pro for unlimited scans."
             )
         
         scan_dict = input.dict()
         scan_dict['url'] = str(scan_dict['url'])
         scan_dict['user_id'] = current_user.id
+        # If user is in an org, scan belongs to the org
+        scan_dict['organization_id'] = current_user.organization_id
         scan_obj = ScanRequest(**scan_dict)
         scan_data = scan_obj.dict()
         scan_data['url'] = str(scan_data['url'])

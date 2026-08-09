@@ -27,3 +27,6 @@ export {
   ScanAnalyticsPage,
   ScheduledScansPage
 } from './scanner';
+
+// Team
+export { TeamPage } from './team';

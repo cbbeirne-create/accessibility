@@ -454,5 +454,145 @@ export const healthAPI = {
   },
 };
 
+// ============================================
+// Organizations/Team API
+// ============================================
+
+export const organizationsAPI = {
+  /**
+   * Get current user's organization
+   * @returns {Promise<OrganizationProfile | null>}
+   */
+  getCurrent: async () => {
+    const response = await api.get('/organizations/current');
+    return response.data;
+  },
+
+  /**
+   * Create a new organization (Pro only)
+   * @param {string} name - Organization name
+   * @returns {Promise<Organization>}
+   */
+  create: async (name) => {
+    const response = await api.post('/organizations', { name });
+    return response.data;
+  },
+
+  /**
+   * Get organization details with members
+   * @param {string} orgId 
+   * @returns {Promise<OrganizationWithMembers>}
+   */
+  get: async (orgId) => {
+    const response = await api.get(`/organizations/${orgId}`);
+    return response.data;
+  },
+
+  /**
+   * Update organization
+   * @param {string} orgId 
+   * @param {Object} data 
+   * @returns {Promise<Organization>}
+   */
+  update: async (orgId, data) => {
+    const response = await api.put(`/organizations/${orgId}`, data);
+    return response.data;
+  },
+
+  /**
+   * Delete organization (owner only)
+   * @param {string} orgId 
+   * @returns {Promise<{message: string}>}
+   */
+  delete: async (orgId) => {
+    const response = await api.delete(`/organizations/${orgId}`);
+    return response.data;
+  },
+
+  /**
+   * Invite a member to the organization
+   * @param {string} orgId 
+   * @param {string} email 
+   * @returns {Promise<OrganizationInviteInfo>}
+   */
+  inviteMember: async (orgId, email) => {
+    const response = await api.post(`/organizations/${orgId}/invite`, { email });
+    return response.data;
+  },
+
+  /**
+   * Cancel a pending invite
+   * @param {string} orgId 
+   * @param {string} inviteId 
+   * @returns {Promise<{message: string}>}
+   */
+  cancelInvite: async (orgId, inviteId) => {
+    const response = await api.delete(`/organizations/${orgId}/invites/${inviteId}`);
+    return response.data;
+  },
+
+  /**
+   * Get pending invites for current user
+   * @returns {Promise<OrganizationInviteInfo[]>}
+   */
+  getPendingInvites: async () => {
+    const response = await api.get('/organizations/invites/pending');
+    return response.data;
+  },
+
+  /**
+   * Accept an invite
+   * @param {string} token 
+   * @returns {Promise<{message: string}>}
+   */
+  acceptInvite: async (token) => {
+    const response = await api.post(`/organizations/invites/${token}/accept`);
+    return response.data;
+  },
+
+  /**
+   * Decline an invite
+   * @param {string} token 
+   * @returns {Promise<{message: string}>}
+   */
+  declineInvite: async (token) => {
+    const response = await api.post(`/organizations/invites/${token}/decline`);
+    return response.data;
+  },
+
+  /**
+   * Remove a member from the organization
+   * @param {string} orgId 
+   * @param {string} userId 
+   * @returns {Promise<{message: string}>}
+   */
+  removeMember: async (orgId, userId) => {
+    const response = await api.delete(`/organizations/${orgId}/members/${userId}`);
+    return response.data;
+  },
+
+  /**
+   * Leave the current organization (members only)
+   * @returns {Promise<{message: string}>}
+   */
+  leave: async () => {
+    const response = await api.post('/organizations/leave');
+    return response.data;
+  },
+
+  /**
+   * Transfer ownership to another member
+   * @param {string} orgId 
+   * @param {string} newOwnerId 
+   * @returns {Promise<{message: string}>}
+   */
+  transferOwnership: async (orgId, newOwnerId) => {
+    const response = await api.post(`/organizations/${orgId}/transfer-ownership`, { 
+      new_owner_id: newOwnerId 
+    });
+    return response.data;
+  },
+};
+
 // Export the axios instance for custom requests
 export default api;
