@@ -15,9 +15,10 @@
  */
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Shield } from 'lucide-react';
+import { Shield, Clock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import SkipLink from './SkipLink';
+import { NotificationBell } from '../common';
 
 const Navigation = () => {
   const { user, logout, isAuthenticated } = useAuth();
@@ -116,6 +117,20 @@ const Navigation = () => {
                     Analytics
                   </Link>
                   <Link 
+                    to="/scheduled-scans" 
+                    data-testid="nav-scheduled"
+                    role="menuitem"
+                    aria-current={isActive('/scheduled-scans') ? 'page' : undefined}
+                    className={`${linkBaseClasses} flex items-center space-x-1 ${
+                      isActive('/scheduled-scans') 
+                        ? 'bg-slate-800 text-white' 
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <Clock className="w-4 h-4" aria-hidden="true" />
+                    <span>Scheduled</span>
+                  </Link>
+                  <Link 
                     to="/pricing" 
                     data-testid="nav-pricing"
                     role="menuitem"
@@ -132,6 +147,9 @@ const Navigation = () => {
                   {/* User Menu */}
                   <div className="flex items-center ml-4 pl-4 border-l border-slate-700">
                     <div className="flex items-center space-x-3">
+                      {/* Notifications Bell */}
+                      <NotificationBell />
+                      
                       <div className="text-right">
                         <div className="text-sm font-medium text-white">
                           {user?.full_name || user?.email?.split('@')[0]}

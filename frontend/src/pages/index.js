@@ -24,5 +24,6 @@ export {
   ScanPage, 
   MyScansPage, 
   ScanResultsPage, 
-  ScanAnalyticsPage 
+  ScanAnalyticsPage,
+  ScheduledScansPage
 } from './scanner';

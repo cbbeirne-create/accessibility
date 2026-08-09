@@ -296,6 +296,150 @@ export const subscriptionAPI = {
 };
 
 // ============================================
+// Scheduled Scans API
+// ============================================
+
+export const scheduledScansAPI = {
+  /**
+   * Get all scheduled scans for current user
+   * @returns {Promise<ScheduledScan[]>}
+   */
+  getAll: async () => {
+    const response = await api.get('/scheduled-scans');
+    return response.data;
+  },
+
+  /**
+   * Get single scheduled scan by ID
+   * @param {string} scheduledId 
+   * @returns {Promise<ScheduledScan>}
+   */
+  getById: async (scheduledId) => {
+    const response = await api.get(`/scheduled-scans/${scheduledId}`);
+    return response.data;
+  },
+
+  /**
+   * Create new scheduled scan
+   * @param {string} url - URL to scan
+   * @param {number} intervalDays - Interval in days between scans
+   * @returns {Promise<ScheduledScan>}
+   */
+  create: async (url, intervalDays) => {
+    const response = await api.post('/scheduled-scans', { 
+      url, 
+      interval_days: intervalDays 
+    });
+    return response.data;
+  },
+
+  /**
+   * Update scheduled scan
+   * @param {string} scheduledId 
+   * @param {Object} data - Update data (url, interval_days, enabled)
+   * @returns {Promise<ScheduledScan>}
+   */
+  update: async (scheduledId, data) => {
+    const response = await api.put(`/scheduled-scans/${scheduledId}`, data);
+    return response.data;
+  },
+
+  /**
+   * Delete scheduled scan
+   * @param {string} scheduledId 
+   * @returns {Promise<{message: string}>}
+   */
+  delete: async (scheduledId) => {
+    const response = await api.delete(`/scheduled-scans/${scheduledId}`);
+    return response.data;
+  },
+
+  /**
+   * Toggle scheduled scan on/off
+   * @param {string} scheduledId 
+   * @returns {Promise<ScheduledScan>}
+   */
+  toggle: async (scheduledId) => {
+    const response = await api.post(`/scheduled-scans/${scheduledId}/toggle`);
+    return response.data;
+  },
+
+  /**
+   * Get scheduled scan limits info
+   * @returns {Promise<{plan: string, limit: number, used: number, remaining: number, can_create: boolean}>}
+   */
+  getLimits: async () => {
+    const response = await api.get('/scheduled-scans/limits/info');
+    return response.data;
+  },
+};
+
+// ============================================
+// Notifications API
+// ============================================
+
+export const notificationsAPI = {
+  /**
+   * Get all notifications for current user
+   * @param {boolean} unreadOnly - Only return unread notifications
+   * @returns {Promise<Notification[]>}
+   */
+  getAll: async (unreadOnly = false) => {
+    const response = await api.get('/notifications', { 
+      params: { unread_only: unreadOnly } 
+    });
+    return response.data;
+  },
+
+  /**
+   * Get unread notification count
+   * @returns {Promise<{count: number}>}
+   */
+  getUnreadCount: async () => {
+    const response = await api.get('/notifications/unread-count');
+    return response.data;
+  },
+
+  /**
+   * Mark notification as read
+   * @param {string} notificationId 
+   * @returns {Promise<{message: string}>}
+   */
+  markAsRead: async (notificationId) => {
+    const response = await api.put(`/notifications/${notificationId}/read`);
+    return response.data;
+  },
+
+  /**
+   * Mark all notifications as read
+   * @returns {Promise<{message: string}>}
+   */
+  markAllAsRead: async () => {
+    const response = await api.put('/notifications/read-all');
+    return response.data;
+  },
+
+  /**
+   * Delete notification
+   * @param {string} notificationId 
+   * @returns {Promise<{message: string}>}
+   */
+  delete: async (notificationId) => {
+    const response = await api.delete(`/notifications/${notificationId}`);
+    return response.data;
+  },
+
+  /**
+   * Clear all notifications
+   * @returns {Promise<{message: string}>}
+   */
+  clearAll: async () => {
+    const response = await api.delete('/notifications/clear-all');
+    return response.data;
+  },
+};
+
+// ============================================
 // Health API
 // ============================================
 

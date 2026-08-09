@@ -15,6 +15,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from backend.core.database import close_db_connection
 from backend.api import api_router
+from backend.services.scheduler_service import start_scheduler, stop_scheduler
 
 # Configure logging
 logging.basicConfig(
@@ -49,11 +50,14 @@ app.add_middleware(
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown."""
+    await stop_scheduler()
     await close_db_connection()
     logger.info("Application shutdown complete")
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Log startup."""
+    """Log startup and start background services."""
     logger.info("Auditly API started successfully")
+    await start_scheduler()
+    logger.info("Background scheduler started")

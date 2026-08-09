@@ -38,6 +38,7 @@ import {
   MyScansPage,
   ScanResultsPage,
   ScanAnalyticsPage,
+  ScheduledScansPage,
 } from "./pages";
 
 // ============================================
@@ -80,6 +81,11 @@ function App() {
             <Route path="/scan-results/:id" element={
               <ProtectedRoute>
                 <ScanResultsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/scheduled-scans" element={
+              <ProtectedRoute>
+                <ScheduledScansPage />
               </ProtectedRoute>
             } />
           </Routes>
