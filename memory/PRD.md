@@ -159,7 +159,7 @@ REACT_APP_BACKEND_URL=https://...
 - ✅ Refactor backend server.py into modular structure (COMPLETED)
 - ✅ Scan comparison / history tracking with Analytics page (COMPLETED)
 - ✅ Refactor monolithic App.js into /pages, /components, /contexts (COMPLETED)
-- [ ] Scheduled recurring scans
+- ✅ Scheduled recurring scans with custom intervals (COMPLETED)
 - [ ] Team/organization accounts
 
 ### P3 - Future
@@ -203,19 +203,31 @@ REACT_APP_BACKEND_URL=https://...
 
 ## Last Updated
 - Date: December 2025
-- Session: Completed Frontend Refactoring - Modular Page Architecture
+- Session: Implemented Scheduled Scans Feature
 
 ## Changelog
+### December 2025 - Scheduled Scans Feature
+- Added scheduled recurring scans with custom intervals (daily, weekly, bi-weekly, monthly, quarterly)
+- Free users get 1 scheduled scan, Pro users get unlimited
+- Background scheduler service runs every 60 seconds to check for due scans
+- In-app notifications when scheduled scans complete
+- NotificationBell component in navigation with unread count badge
+- New pages: /scheduled-scans
+- New API endpoints: 
+  - /api/scheduled-scans (CRUD)
+  - /api/scheduled-scans/limits/info
+  - /api/notifications (CRUD)
+- Test report: /app/test_reports/iteration_4.json (100% pass rate)
+
 ### December 2025 - Frontend Modular Refactoring
 - Extracted all page components from monolithic App.js (2186 lines → 93 lines)
 - Created modular page structure:
   - `/pages/auth/` - LoginPage, SignupPage, ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage
   - `/pages/dashboard/` - Dashboard
   - `/pages/pricing/` - PricingPage
-  - `/pages/scanner/` - ScanPage, MyScansPage, ScanResultsPage, ScanAnalyticsPage
-- Created `/components/common/` - EmailVerificationBanner
+  - `/pages/scanner/` - ScanPage, MyScansPage, ScanResultsPage, ScanAnalyticsPage, ScheduledScansPage
+- Created `/components/common/` - EmailVerificationBanner, NotificationBell
 - Added centralized exports via `/pages/index.js`
-- All routes verified working (100% pass rate)
 - Test report: `/app/test_reports/iteration_3.json`
 
 ### March 23, 2026 - Password Reset Feature

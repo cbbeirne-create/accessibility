@@ -99,7 +99,7 @@ const ScheduledScansPage = () => {
     const date = new Date(nextRun);
     const now = new Date();
     const diffMs = date - now;
-    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
     
     if (diffDays <= 0) return 'Running soon...';
     if (diffDays === 1) return 'Tomorrow';

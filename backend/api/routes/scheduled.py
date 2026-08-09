@@ -59,16 +59,7 @@ async def create_scheduled_scan(
 ):
     """Create a new scheduled scan."""
     try:
-        # Check limit
-        can_create = await check_scheduled_scan_limit(current_user)
-        if not can_create:
-            limit = get_scheduled_scan_limits(current_user.plan)
-            raise HTTPException(
-                status_code=403,
-                detail=f"Scheduled scan limit reached. Your plan allows {limit} scheduled scan(s). Upgrade to Pro for unlimited."
-            )
-        
-        # Check if URL already has a scheduled scan
+        # Check if URL already has a scheduled scan (check this first for better UX)
         existing = await db.scheduled_scans.find_one({
             "user_id": current_user.id,
             "url": str(input.url).rstrip('/')
@@ -77,6 +68,15 @@ async def create_scheduled_scan(
             raise HTTPException(
                 status_code=400,
                 detail="A scheduled scan already exists for this URL. Edit the existing one instead."
+            )
+        
+        # Check limit
+        can_create = await check_scheduled_scan_limit(current_user)
+        if not can_create:
+            limit = get_scheduled_scan_limits(current_user.plan)
+            raise HTTPException(
+                status_code=403,
+                detail=f"Scheduled scan limit reached. Your plan allows {limit} scheduled scan(s). Upgrade to Pro for unlimited."
             )
         
         # Calculate first run time (start from now + interval)
