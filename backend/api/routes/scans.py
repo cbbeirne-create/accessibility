@@ -3,7 +3,7 @@ import json
 import logging
 from typing import List
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from ...core.config import settings
 from ...core.database import db
@@ -21,7 +21,7 @@ from ...services.entitlements import (
 from ...services.evidence_storage import load_png
 from ...services.external_scanners import runScanWithExternalApi
 from ...services.pdf_generator import ReportExporter
-from ...services.playwright_engine import perform_accessibility_scan
+from ...services.scan_queue import enqueue_scan
 from ...services.url_security import UnsafeScanTarget, validate_scan_url
 
 router = APIRouter()
@@ -41,11 +41,7 @@ async def get_scan_requests(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/scans", response_model=ScanRequest)
-async def create_scan_request(
-    input: ScanRequestCreate,
-    background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_user),
-):
+async def create_scan_request(input: ScanRequestCreate, current_user: User = Depends(get_current_user)):
     _require_verified_email(current_user)
     try:
         await validate_scan_url(str(input.url))
@@ -70,12 +66,13 @@ async def create_scan_request(
         scan_data = scan_obj.dict()
         scan_data["url"] = str(scan_data["url"])
         await db.scan_requests.insert_one(scan_data)
+        await enqueue_scan(scan_obj.id, str(input.url), input.tool.value if input.tool else "axe-core")
     except Exception:
         await release_scan_quota(current_user.id)
+        await db.scan_requests.delete_one({"id": locals().get("scan_obj").id}) if locals().get("scan_obj") else None
         logger.exception("Failed to create scan request")
         raise HTTPException(status_code=500, detail="Failed to create scan request")
 
-    background_tasks.add_task(perform_accessibility_scan, scan_obj.id, str(input.url), input.tool)
     return scan_obj
 
 
@@ -213,6 +210,7 @@ async def delete_scan_request(scan_id: str, current_user: User = Depends(get_cur
     result = await db.scan_requests.delete_one({"id": scan_id, **scope})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Scan request not found")
+    await db.scan_jobs.delete_many({"scan_id": scan_id, "status": {"$in": ["queued", "retry"]}})
     return {"message": "Scan request deleted successfully"}
 
 
