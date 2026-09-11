@@ -4,7 +4,9 @@ WORKDIR /app
 RUN corepack enable
 
 COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+# yarn.lock predates the lucide-react declaration. Keep existing locked resolutions and
+# resolve the one missing package without mutating the build context.
+RUN yarn install --pure-lockfile --non-interactive
 
 COPY . .
 ARG REACT_APP_BACKEND_URL
