@@ -11,6 +11,7 @@ jobs:
     env:
       SECRET_KEY: ci-only-secret-key-with-at-least-32-characters
       REFRESH_COOKIE_SECURE: "false"
+      PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -27,11 +28,11 @@ jobs:
           SECRET_KEY: ci-only-secret-key-with-at-least-32-characters
         run: docker compose config --quiet
       - name: Test SSRF controls
-        run: pytest -q backend/tests/unit/test_security_hardening.py::test_private_and_unsafe_targets_are_rejected
+        run: python -m pytest -q backend/tests/unit/test_security_hardening.py::test_private_and_unsafe_targets_are_rejected
       - name: Test refresh-token primitives
-        run: pytest -q backend/tests/unit/test_security_hardening.py::test_refresh_tokens_are_random_and_only_hashes_need_persistence
+        run: python -m pytest -q backend/tests/unit/test_security_hardening.py::test_refresh_tokens_are_random_and_only_hashes_need_persistence
       - name: Test accessibility health score
-        run: pytest -q backend/tests/unit/test_security_hardening.py::test_health_score_is_bounded_and_not_magic_floor
+        run: python -m pytest -q backend/tests/unit/test_security_hardening.py::test_health_score_is_bounded_and_not_magic_floor
 
   frontend:
     runs-on: ubuntu-latest
