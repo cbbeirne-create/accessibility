@@ -7,6 +7,7 @@ from starlette.middleware.cors import CORSMiddleware
 from backend.api import api_router
 from backend.core.config import settings
 from backend.core.database import close_db_connection
+from backend.core.rate_limit import RateLimitMiddleware
 from backend.services.scheduler_service import start_scheduler, stop_scheduler
 
 logging.basicConfig(
@@ -25,6 +26,7 @@ app = FastAPI(
 )
 app.include_router(api_router)
 
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
