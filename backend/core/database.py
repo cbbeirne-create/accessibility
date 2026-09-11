@@ -27,6 +27,9 @@ async def ensure_indexes() -> None:
     await db.refresh_tokens.create_index([("user_id", 1), ("revoked_at", 1)])
     await db.refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
 
+    await db.rate_limits.create_index([("key", 1), ("bucket_start", 1)], unique=True)
+    await db.rate_limits.create_index("expires_at", expireAfterSeconds=0)
+
     await db.scheduled_scans.create_index("id", unique=True)
     await db.scheduled_scans.create_index([("user_id", 1), ("created_at", -1)])
     await db.scheduled_scans.create_index([("enabled", 1), ("next_run", 1), ("lock_until", 1)])
