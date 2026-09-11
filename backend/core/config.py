@@ -43,9 +43,10 @@ class Settings:
     SENDGRID_API_KEY: Optional[str] = os.environ.get('SENDGRID_API_KEY')
     SENDER_EMAIL: str = os.environ.get('SENDER_EMAIL', 'noreply@auditly.com')
 
-    # Frontend / CORS
+    # Frontend / proxy / CORS
     FRONTEND_URL: str = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
     CORS_ALLOWED_ORIGINS: List[str] = _csv('CORS_ALLOWED_ORIGINS', FRONTEND_URL)
+    TRUST_PROXY_HEADERS: bool = os.environ.get('TRUST_PROXY_HEADERS', 'false').lower() == 'true'
 
     # External scanners
     WAVE_API_KEY: Optional[str] = os.environ.get('WAVE_API_KEY')
