@@ -2,10 +2,6 @@ import asyncio
 
 import pytest
 
-from backend.core.security import generate_refresh_token, hash_refresh_token
-from backend.services.playwright_engine import AccessibilityScanner
-from backend.services.url_security import UnsafeScanTarget, validate_scan_url
-
 
 @pytest.mark.parametrize(
     "url",
@@ -19,11 +15,15 @@ from backend.services.url_security import UnsafeScanTarget, validate_scan_url
     ],
 )
 def test_private_and_unsafe_targets_are_rejected(url):
+    from backend.services.url_security import UnsafeScanTarget, validate_scan_url
+
     with pytest.raises(UnsafeScanTarget):
         asyncio.run(validate_scan_url(url))
 
 
 def test_refresh_tokens_are_random_and_only_hashes_need_persistence():
+    from backend.core.security import generate_refresh_token, hash_refresh_token
+
     first = generate_refresh_token()
     second = generate_refresh_token()
     assert first != second
@@ -33,6 +33,8 @@ def test_refresh_tokens_are_random_and_only_hashes_need_persistence():
 
 
 def test_health_score_is_bounded_and_not_magic_floor():
+    from backend.services.playwright_engine import AccessibilityScanner
+
     perfect = {"violations": [], "passes": [{"nodes": [{}, {}]}]}
     poor = {
         "violations": [{"impact": "critical", "nodes": [{}, {}, {}]}],
