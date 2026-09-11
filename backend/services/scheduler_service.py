@@ -11,7 +11,7 @@ from pymongo import ReturnDocument
 from ..core.config import settings
 from ..models.scheduled import Notification
 from ..models.user import User
-from .entitlements import reserve_scan_quota
+from .entitlements import release_scan_quota, reserve_scan_quota
 from .scan_queue import enqueue_scan
 from .url_security import UnsafeScanTarget, validate_scan_url
 
@@ -117,12 +117,17 @@ class SchedulerService:
             "createdAt": now,
             "scheduled_scan_id": scheduled_scan["id"],
         }
+        inserted = False
         try:
             await self.db.scan_requests.insert_one(scan_data)
+            inserted = True
             await enqueue_scan(scan_id, url, "axe-core", scheduled_scan_id=scheduled_scan["id"])
             await self._advance_schedule(scheduled_scan, last_scan_id=scan_id)
-        except Exception as exc:
+        except Exception:
             logger.exception("Error queueing scheduled scan %s", scheduled_scan["id"])
+            if inserted:
+                await self.db.scan_requests.delete_one({"id": scan_id})
+            await release_scan_quota(user_id)
             await self._advance_schedule(scheduled_scan)
             await self.create_notification(
                 user_id, "scheduled_scan_failed", "Scheduled Scan Failed",
