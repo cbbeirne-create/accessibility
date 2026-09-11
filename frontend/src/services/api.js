@@ -79,6 +79,12 @@ export const authAPI = {
       setToken(null);
     }
   },
+  forgotPassword: async (email) => (await api.post('/auth/forgot-password', { email }, { _skipAuthRefresh: true })).data,
+  verifyResetToken: async (token) => (await api.get('/auth/verify-reset-token', { params: { token }, _skipAuthRefresh: true })).data,
+  resetPassword: async (token, newPassword) => (await api.post('/auth/reset-password', { token, new_password: newPassword }, { _skipAuthRefresh: true })).data,
+  verifyEmail: async (token) => (await api.post('/auth/verify-email', { token }, { _skipAuthRefresh: true })).data,
+  resendVerification: async (email) => (await api.post('/auth/resend-verification', { email }, { _skipAuthRefresh: true })).data,
+  getVerificationStatus: async () => (await api.get('/auth/verification-status')).data,
 };
 
 export const scansAPI = {
