@@ -13,6 +13,7 @@ jobs:
       ENVIRONMENT: development
       MONGO_URL: mongodb://localhost:27017
       DB_NAME: auditly_test
+      PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
