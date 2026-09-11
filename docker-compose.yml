@@ -1,5 +1,26 @@
 version: '3.8'
 
+x-backend-env: &backend-env
+  ENVIRONMENT: ${ENVIRONMENT:-development}
+  MONGO_URL: mongodb://mongodb:27017
+  DB_NAME: accessibility_scanner
+  SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
+  FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+  ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
+  REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE:-false}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  STRIPE_PRO_PRICE_ID: ${STRIPE_PRO_PRICE_ID:-}
+  SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+  SENDER_EMAIL: ${SENDER_EMAIL:-noreply@auditly.com}
+  EVIDENCE_S3_BUCKET: ${EVIDENCE_S3_BUCKET:-}
+  EVIDENCE_S3_PREFIX: ${EVIDENCE_S3_PREFIX:-auditly-evidence}
+  S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+  AWS_REGION: ${AWS_REGION:-eu-west-1}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+
 services:
   mongodb:
     image: mongo:7.0
@@ -25,20 +46,7 @@ services:
       dockerfile: Dockerfile
     container_name: accessibility_scanner_backend
     restart: unless-stopped
-    environment:
-      ENVIRONMENT: ${ENVIRONMENT:-development}
-      MONGO_URL: mongodb://mongodb:27017
-      DB_NAME: accessibility_scanner
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
-      REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE:-false}
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
-      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
-      STRIPE_PRO_PRICE_ID: ${STRIPE_PRO_PRICE_ID:-}
-      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
-      SENDER_EMAIL: ${SENDER_EMAIL:-noreply@auditly.com}
+    environment: *backend-env
     ports:
       - "8000:8000"
     depends_on:
@@ -52,6 +60,21 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["python", "-m", "backend.worker"]
+    restart: unless-stopped
+    environment: *backend-env
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - scanner_network
+    deploy:
+      replicas: 1
 
   frontend:
     build:
