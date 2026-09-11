@@ -1,88 +1,184 @@
-# Auditly — Website Accessibility Scanner
+# Auditly — accessibility monitoring and remediation
 
-Auditly is a web application that performs automated accessibility scans of websites, captures visual evidence, and produces developer and stakeholder-facing reports (JSON and tagged PDFs). It includes a FastAPI backend that performs scans (axe-core + external APIs) and a Create React App frontend for user flows, billing (Stripe) and report export.
+Auditly scans public websites with Playwright and axe-core, records automated accessibility findings and visual evidence, and turns those findings into developer-facing remediation reports. It also supports authenticated workspaces, scheduled scans, scan history/comparison, Stripe subscriptions, notifications, JSON/PDF exports and team accounts.
 
-## Stack
-- Language(s): Python (backend), JavaScript/React (frontend)
-- Backend: FastAPI, Motor (MongoDB async client), Playwright for browser-based scans
-- Frontend: Create React App, Tailwind CSS
-- Notable libraries: FastAPI, Pydantic, Playwright, ReportLab (PDF generation), stripe, sendgrid
+> **Important:** the Auditly Accessibility Health Score is an automated indicator. It is **not** a WCAG conformance percentage, certification, or substitute for manual accessibility testing.
 
-## Repository layout
-```
-backend/        FastAPI app, scan services, API routes, Dockerfile
-frontend/       Create React App UI, Tailwind, Dockerfile
-app/            helper wrapper (contains frontend/) 
-mongodb/        example Mongo setup / scripts
-memory/         in-memory test helpers
-test_reports/   generated scan/test reports and remediation artifacts
-tests/          test suites for backend/frontend
-docker-compose.yml
-deploy.sh
-DEPLOYMENT.md
+## Architecture
+
+```text
+frontend/                 React 19 + Vite SPA served by Nginx
+backend/main.py           FastAPI API only
+backend/worker.py         dedicated queue + scheduler process
+backend/services/         scanner, queue, entitlements, storage, reports
+MongoDB                   users, scans, sessions, durable queue, scheduler leases
+S3-compatible storage     optional/recommended screenshot evidence storage
 ```
 
-## Quickstart (development)
-1. Backend
+Browser scans do not run inside the FastAPI request process. API requests enqueue durable jobs in MongoDB and the worker atomically claims them.
+
+## Security model
+
+The hardened application includes:
+
+- short-lived JWT access tokens kept only in browser memory;
+- rotating HttpOnly refresh-token sessions with server-side revocation;
+- explicit production CORS origins and security headers;
+- verified-email requirement before expensive scans;
+- atomic plan/quota enforcement;
+- authenticated, organization-scoped scan access;
+- SSRF checks on initial navigation **and browser subrequests**;
+- private/loopback/link-local/reserved network blocking;
+- dedicated non-root Playwright worker;
+- rate limiting for authentication and scan creation;
+- Stripe webhook signature verification and event idempotency;
+- MongoDB not exposed on a host port by the supplied Compose stack;
+- local pinned axe-core rather than runtime CDN injection.
+
+Infrastructure-level egress restrictions are still recommended for the browser worker as a second SSRF/isolation layer.
+
+## Development
+
+### Backend
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+
+export MONGO_URL=mongodb://localhost:27017
+export DB_NAME=auditly
+export SECRET_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(48))")
+
+uvicorn backend.main:app --reload --port 8000
+```
+
+The browser worker is a separate process:
+
+```bash
+python -m backend.worker
+```
+
+The backend Docker image vendors axe-core automatically. For a non-Docker local backend, install the pinned browser script in `backend/node_modules`:
 
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-# provide env vars (see Environment) or copy .env.example -> .env
-uvicorn backend.main:app --host 0.0.0.0 --port 8000
+npm install
+cd ..
 ```
 
-API docs: http://localhost:8000/api/docs
-
-2. Frontend
+### Frontend
 
 ```bash
 cd frontend
-yarn install
-yarn start
-# or npm install && npm start
+npm install
+npm run dev
 ```
 
-3. Using docker-compose (both services)
+Vite runs on port 3000 and proxies `/api` to `http://localhost:8000` in development.
+
+### Docker Compose
+
+Create a `.env` containing at least a secure `SECRET_KEY`, then:
 
 ```bash
-# from repo root
-docker-compose up --build
+docker compose build
+docker compose up
 ```
 
-## Environment
-Create a backend/.env file (not committed) with at minimum:
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the full production configuration, HTTPS/cookie requirements, object storage and worker-isolation guidance.
+
+## Environment variables
+
+Core settings:
+
+```text
+ENVIRONMENT=development|production
+MONGO_URL=
+DB_NAME=
+SECRET_KEY=
+FRONTEND_URL=
+CORS_ALLOWED_ORIGINS=
+COOKIE_SECURE=true|false
+ACCESS_TOKEN_EXPIRE_MINUTES=20
+REFRESH_TOKEN_EXPIRE_DAYS=30
+MAX_CONCURRENT_SCANS=2
 ```
-MONGO_URL=mongodb://localhost:27017
-DB_NAME=auditly
-SECRET_KEY=<secure random value>
-FRONTEND_URL=http://localhost:3000
-# Optional for integrations
+
+Optional integrations:
+
+```text
 STRIPE_SECRET_KEY=
-STRIPE_PUBLISHABLE_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_PRO_PRICE_ID=
 SENDGRID_API_KEY=
+SENDER_EMAIL=
 WAVE_API_KEY=
 EQUALWEB_API_KEY=
 ACCESSIBE_API_KEY=
+S3_BUCKET=
+S3_REGION=
+S3_ENDPOINT_URL=
+S3_PUBLIC_BASE_URL=
 ```
 
-Notes:
-- Never commit secret keys. Use your platform secret store for production deployments.
-- CORS is permissive by default in development; restrict allowed origins in production.
+## Tests and CI
 
-## Running tests
-- Backend: run pytest from the repository root or backend directory (tests are under backend/tests and tests/)
-- Frontend: `yarn test` inside frontend/
+Backend regression tests:
 
-## Deployment
-See DEPLOYMENT.md and docker-compose.yml. The project includes Dockerfiles for backend and frontend; review them for production best practices (non-root user, multi-stage builds, pinned base images, environment secrets).
+```bash
+pytest -q backend/tests/test_security_primitives.py
+```
 
-## Outstanding immediate docs items
-- Expand DEPLOYMENT.md with environment and production checklist (secrets, TLS, allowed origins, resource sizing).
-- Add CONTRIBUTING.md describing code style, tests, and PR process.
-- Add a README to `backend/` and `frontend/` with component-level details (entrypoints, major modules).
+Frontend production build:
 
-## Contact / Support
-Open issues or PRs in this repository for documentation updates. For quick changes, I can open a PR that adds/updates additional documentation files (CONTRIBUTING.md, backend/README.md, DEPLOYMENT.md updates).
+```bash
+cd frontend
+npm run build
+```
+
+`.github/workflows/ci.yml` runs backend compilation/tests, the frontend Vite build, and production Docker image builds on pushes and pull requests.
+
+## API health endpoints
+
+- `/api/health/live` — process liveness only
+- `/api/health/ready` — database readiness
+- `/api/health` — backward-compatible readiness alias
+
+Health probes deliberately do not launch Chromium.
+
+## Scanner/report behaviour
+
+Auditly records axe-core failures, passes and incomplete/manual-review findings. For violations, reports can include:
+
+- impact/severity;
+- WCAG/axe tags;
+- affected selectors;
+- affected DOM HTML;
+- axe failure summaries;
+- remediation guidance;
+- issue and full-page screenshots;
+- scan history and before/after comparison.
+
+Screenshots use S3-compatible object storage when configured. A Base64-in-Mongo fallback remains for development/small installations only.
+
+## Repository layout
+
+```text
+backend/
+  api/routes/       FastAPI route modules
+  core/             config, database, auth primitives
+  models/           Pydantic models
+  services/         scanner, queue, scheduler, storage, reports
+  tests/            backend regression tests
+  main.py           API entrypoint
+  worker.py         queue/scheduler worker entrypoint
+frontend/
+  src/              React application
+  nginx.conf        production SPA/API proxy
+.github/workflows/  CI
+docker-compose.yml
+DEPLOYMENT.md
+```
+
+`backend/server.py` is retained only as a compatibility import that forwards to `backend.main:app`; the old monolithic implementation is no longer present.
