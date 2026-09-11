@@ -1,81 +1,105 @@
-version: '3.8'
-
 services:
-  # MongoDB Database
   mongodb:
     image: mongo:7.0
-    container_name: accessibility_scanner_db
     restart: unless-stopped
     environment:
       MONGO_INITDB_DATABASE: accessibility_scanner
     volumes:
       - mongodb_data:/data/db
       - ./mongodb/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
-    ports:
-      - "27017:27017"
-    networks:
-      - scanner_network
+    networks: [scanner_network]
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/accessibility_scanner --quiet
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 20s
 
-  # Backend API
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: accessibility_scanner_backend
+      context: .
+      dockerfile: backend/Dockerfile
     restart: unless-stopped
     environment:
-      - MONGO_URL=mongodb://mongodb:27017
-      - DB_NAME=accessibility_scanner
-      - PLAYWRIGHT_BROWSERS_PATH=/home/scanner/.cache/ms-playwright
+      MONGO_URL: mongodb://mongodb:27017
+      DB_NAME: accessibility_scanner
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY to a random value of at least 32 characters}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRO_PRICE_ID: ${STRIPE_PRO_PRICE_ID:-}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDER_EMAIL: ${SENDER_EMAIL:-noreply@auditly.com}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-}
     ports:
       - "8000:8000"
     depends_on:
       mongodb:
         condition: service_healthy
-    networks:
-      - scanner_network
-    volumes:
-      - ./backend/reports:/app/reports
+    networks: [scanner_network]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health/ready"]
       interval: 30s
-      timeout: 30s
+      timeout: 5s
       retries: 3
-      start_period: 60s
+      start_period: 20s
 
-  # Frontend Web App
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "backend.worker"]
+    environment:
+      MONGO_URL: mongodb://mongodb:27017
+      DB_NAME: accessibility_scanner
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY to a random value of at least 32 characters}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost}
+      MAX_CONCURRENT_SCANS: ${MAX_CONCURRENT_SCANS:-2}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDER_EMAIL: ${SENDER_EMAIL:-noreply@auditly.com}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-}
+      WAVE_API_KEY: ${WAVE_API_KEY:-}
+      EQUALWEB_API_KEY: ${EQUALWEB_API_KEY:-}
+      ACCESSIBE_API_KEY: ${ACCESSIBE_API_KEY:-}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks: [scanner_network]
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: accessibility_scanner_frontend
+      args:
+        REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL:-http://localhost:8000}
     restart: unless-stopped
-    environment:
-      - REACT_APP_BACKEND_URL=http://localhost:8000
     ports:
       - "80:80"
-      - "443:443"
     depends_on:
       backend:
         condition: service_healthy
-    networks:
-      - scanner_network
+    networks: [scanner_network]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost/health"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
-      start_period: 30s
+      start_period: 10s
 
 volumes:
   mongodb_data:
-    driver: local
 
 networks:
   scanner_network:
