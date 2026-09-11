@@ -41,6 +41,7 @@ db.scheduled_scans.createIndex({ user_id: 1, created_at: -1 });
 db.scheduled_scans.createIndex({ enabled: 1, next_run: 1, lock_until: 1 });
 
 db.notifications.createIndex({ user_id: 1, created_at: -1 });
+db.notifications.createIndex({ event_key: 1 }, { unique: true, sparse: true });
 
 db.organizations.createIndex({ id: 1 }, { unique: true });
 db.organization_members.createIndex({ organization_id: 1, user_id: 1 }, { unique: true });
