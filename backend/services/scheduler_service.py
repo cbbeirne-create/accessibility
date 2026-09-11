@@ -12,7 +12,7 @@ from ..core.config import settings
 from ..models.scheduled import Notification
 from ..models.user import User
 from .entitlements import reserve_scan_quota
-from .playwright_engine import perform_accessibility_scan
+from .scan_queue import enqueue_scan
 from .url_security import UnsafeScanTarget, validate_scan_url
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ class SchedulerService:
         )
         await self.db.notifications.insert_one(notification.dict())
 
-    async def _advance_schedule(self, scheduled_scan: dict, *, last_scan_id=None, last_score=None) -> None:
+    async def _advance_schedule(self, scheduled_scan: dict, *, last_scan_id=None) -> None:
         now = datetime.now(timezone.utc)
         update = {
             "last_run": now,
@@ -66,8 +66,6 @@ class SchedulerService:
         }
         if last_scan_id:
             update["last_scan_id"] = last_scan_id
-        if last_score is not None:
-            update["last_score"] = last_score
         await self.db.scheduled_scans.update_one({"id": scheduled_scan["id"]}, {"$set": update})
 
     async def run_scheduled_scan(self, scheduled_scan: dict):
@@ -121,30 +119,14 @@ class SchedulerService:
         }
         try:
             await self.db.scan_requests.insert_one(scan_data)
-            await perform_accessibility_scan(scan_id, url, "axe-core")
-            completed = await self.db.scan_requests.find_one({"id": scan_id})
-            status = completed.get("status", "error") if completed else "error"
-            score = completed.get("score") if completed else None
-            await self._advance_schedule(scheduled_scan, last_scan_id=scan_id, last_score=score)
-
-            if status == "completed":
-                await self.create_notification(
-                    user_id, "scheduled_scan_complete", "Scheduled Scan Complete",
-                    f"Your scheduled scan for {url} completed with a health score of {score}/100.",
-                    {"scan_id": scan_id, "scheduled_id": scheduled_scan["id"], "url": url, "score": score},
-                )
-            else:
-                await self.create_notification(
-                    user_id, "scheduled_scan_failed", "Scheduled Scan Failed",
-                    f"Your scheduled scan for {url} failed.",
-                    {"scan_id": scan_id, "scheduled_id": scheduled_scan["id"], "url": url},
-                )
+            await enqueue_scan(scan_id, url, "axe-core", scheduled_scan_id=scheduled_scan["id"])
+            await self._advance_schedule(scheduled_scan, last_scan_id=scan_id)
         except Exception as exc:
-            logger.exception("Error running scheduled scan %s", scheduled_scan["id"])
+            logger.exception("Error queueing scheduled scan %s", scheduled_scan["id"])
             await self._advance_schedule(scheduled_scan)
             await self.create_notification(
                 user_id, "scheduled_scan_failed", "Scheduled Scan Failed",
-                "Your scheduled scan failed due to an internal error.",
+                "Your scheduled scan could not be queued.",
                 {"scheduled_id": scheduled_scan["id"], "url": url},
             )
 
