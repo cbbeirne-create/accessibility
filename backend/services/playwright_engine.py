@@ -1,375 +1,306 @@
-"""
-Playwright-based accessibility scanning engine.
-Uses axe-core for WCAG compliance testing with visual evidence capture.
-"""
-import logging
+"""Playwright-based accessibility scanning engine using axe-core."""
 import base64
-from datetime import datetime
-from typing import Dict, Any, List, Optional
+import logging
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from playwright.async_api import async_playwright
 
+from ..core.config import settings
 from ..core.database import db
 from ..models.scan import ScanStatus, ScanTool
+from .evidence_storage import store_base64_png
+from .url_security import UnsafeScanTarget, validate_scan_url
+
+logger = logging.getLogger(__name__)
+AXE_BUNDLE_PATH = Path(__file__).resolve().parent.parent / "vendor" / "axe.min.js"
 
 
 class AccessibilityScanner:
     """Accessibility scanning service using Playwright and axe-core."""
-    
+
     @staticmethod
     async def setup_playwright_browser():
-        """Set up Playwright browser with optimized options."""
+        playwright = await async_playwright().start()
         try:
-            playwright = await async_playwright().start()
             browser = await playwright.chromium.launch(
                 headless=True,
                 args=[
-                    '--no-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-extensions',
-                    '--disable-gpu',
-                    '--disable-web-security',
-                    '--allow-running-insecure-content',
-                    '--ignore-certificate-errors',
-                    '--disable-features=TranslateUI'
-                ]
+                    "--disable-dev-shm-usage",
+                    "--disable-extensions",
+                    "--disable-gpu",
+                    "--disable-features=TranslateUI",
+                ],
             )
             return playwright, browser
-        except Exception as e:
-            logging.error(f"Failed to setup Playwright browser: {e}")
-            raise Exception(f"Playwright browser setup failed: {e}")
-    
+        except Exception:
+            await playwright.stop()
+            raise
+
+    @staticmethod
+    async def _install_network_guard(page) -> None:
+        """Abort HTTP(S) requests that resolve outside the public internet."""
+        validated_hosts: set[tuple[str, int]] = set()
+
+        async def guard(route):
+            request_url = route.request.url
+            parsed = urlparse(request_url)
+            if parsed.scheme not in {"http", "https"}:
+                await route.continue_()
+                return
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            key = ((parsed.hostname or "").lower(), port)
+            try:
+                if key not in validated_hosts:
+                    await validate_scan_url(request_url)
+                    validated_hosts.add(key)
+                await route.continue_()
+            except UnsafeScanTarget:
+                logger.warning("Blocked unsafe browser request to %s", request_url)
+                await route.abort("blockedbyclient")
+
+        await page.route("**/*", guard)
+
+    @staticmethod
+    async def _inject_axe(page) -> None:
+        """Inject the pinned local axe-core bundle; CDN fallback is development-only."""
+        if AXE_BUNDLE_PATH.exists():
+            await page.add_script_tag(path=str(AXE_BUNDLE_PATH))
+            return
+        if settings.ENVIRONMENT == "production":
+            raise RuntimeError("Vendored axe-core bundle is missing from the production image")
+        logger.warning("Vendored axe-core bundle not found; using pinned development CDN fallback")
+        await page.add_script_tag(url="https://unpkg.com/axe-core@4.8.2/axe.min.js")
+
     @staticmethod
     async def capture_element_screenshot(page, selector: str) -> Optional[str]:
-        """Capture screenshot of specific element and return as base64."""
         try:
             element = await page.query_selector(selector)
-            if element:
-                screenshot_bytes = await element.screenshot()
-                screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
-                return screenshot_base64
+            if not element:
+                return None
+            return base64.b64encode(await element.screenshot(type="png")).decode("utf-8")
+        except Exception as exc:
+            logger.debug("Could not capture element screenshot for %s: %s", selector, exc)
             return None
-        except Exception as e:
-            logging.warning(f"Could not capture element screenshot for {selector}: {e}")
-            return None
-    
+
     @staticmethod
     async def highlight_elements_on_page(page, selectors: List[str]) -> str:
-        """Highlight failing elements and capture full page screenshot."""
-        try:
-            highlight_css = """
-                .axe-violation-highlight {
-                    outline: 3px solid #ff0000 !important;
-                    outline-offset: 2px !important;
-                    background: rgba(255, 0, 0, 0.1) !important;
-                }
-            """
-            await page.add_style_tag(content=highlight_css)
-            
-            for selector in selectors:
-                try:
-                    await page.evaluate(f'''
-                        document.querySelectorAll("{selector}").forEach(el => {{
-                            el.classList.add("axe-violation-highlight");
-                        }});
-                    ''')
-                except Exception:
-                    continue
-            
-            screenshot_bytes = await page.screenshot(full_page=True, type='png')
-            screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
-            return screenshot_base64
-            
-        except Exception as e:
-            logging.warning(f"Could not highlight elements: {e}")
-            screenshot_bytes = await page.screenshot(full_page=True, type='png')
-            return base64.b64encode(screenshot_bytes).decode('utf-8')
+        await page.add_style_tag(content="""
+            .axe-violation-highlight {
+                outline: 3px solid #dc2626 !important;
+                outline-offset: 2px !important;
+                background: rgba(220, 38, 38, 0.08) !important;
+            }
+        """)
+        for selector in selectors[:10]:
+            try:
+                await page.locator(selector).first.evaluate("el => el.classList.add('axe-violation-highlight')")
+            except Exception:
+                continue
+        return base64.b64encode(await page.screenshot(full_page=True, type="png")).decode("utf-8")
 
     @staticmethod
     async def scan_with_axe(url: str) -> Dict[str, Any]:
-        """Scan website using axe-core with Playwright and visual evidence."""
-        playwright = None
-        browser = None
-        page = None
-        
+        playwright = browser = context = page = None
         try:
+            await validate_scan_url(url)
             playwright, browser = await AccessibilityScanner.setup_playwright_browser()
-            page = await browser.new_page()
-            
-            await page.set_viewport_size({"width": 1920, "height": 1080})
-            await page.goto(str(url), wait_until='load', timeout=30000)
-            await page.wait_for_timeout(2000)
-            
-            await page.add_script_tag(url='https://unpkg.com/axe-core@4.8.2/axe.min.js')
+            context = await browser.new_context(
+                viewport={"width": 1440, "height": 900},
+                ignore_https_errors=False,
+                service_workers="block",
+            )
+            page = await context.new_page()
+            await AccessibilityScanner._install_network_guard(page)
+            response = await page.goto(
+                url,
+                wait_until="domcontentloaded",
+                timeout=settings.SCAN_NAVIGATION_TIMEOUT_MS,
+            )
+            if response and response.status >= 400:
+                raise RuntimeError(f"Target returned HTTP {response.status}")
             await page.wait_for_timeout(1000)
-            
-            axe_results = await page.evaluate('''
+
+            await AccessibilityScanner._inject_axe(page)
+            axe_results = await page.evaluate("""
                 async () => {
-                    return new Promise((resolve, reject) => {
-                        if (typeof axe === 'undefined') {
-                            reject(new Error('axe-core not loaded'));
-                            return;
-                        }
-                        
-                        axe.run((err, results) => {
-                            if (err) {
-                                reject(err);
-                            } else {
-                                resolve(results);
-                            }
-                        });
+                    if (typeof axe === 'undefined') throw new Error('axe-core not loaded');
+                    return await axe.run(document, {
+                        resultTypes: ['violations', 'passes', 'incomplete', 'inapplicable']
                     });
                 }
-            ''')
-            
+            """)
+
+            formatted = AccessibilityScanner.format_axe_issues(axe_results)
+            evidence = await AccessibilityScanner.capture_visual_evidence(page, formatted.get("failed", []))
             score = AccessibilityScanner.calculate_axe_score(axe_results)
-            formatted_issues = AccessibilityScanner.format_axe_issues(axe_results)
-            
-            visual_evidence = await AccessibilityScanner.capture_visual_evidence(
-                page, formatted_issues.get('failed', [])
-            )
-            
             return {
                 "success": True,
                 "score": score,
-                "results": formatted_issues,
+                "results": formatted,
                 "tool": "axe-core",
-                "visual_evidence": visual_evidence,
+                "visual_evidence": evidence,
                 "scan_metadata": {
-                    "viewport": {"width": 1920, "height": 1080},
-                    "scan_timestamp": datetime.utcnow().isoformat(),
-                    "total_violations": len(formatted_issues.get('failed', [])),
-                    "total_passes": len(formatted_issues.get('passed', [])),
-                    "total_incomplete": len(formatted_issues.get('incomplete', []))
-                }
+                    "viewport": {"width": 1440, "height": 900},
+                    "scan_timestamp": datetime.now(timezone.utc).isoformat(),
+                    "total_violations": len(formatted.get("failed", [])),
+                    "total_passes": len(formatted.get("passed", [])),
+                    "total_incomplete": len(formatted.get("incomplete", [])),
+                    "score_name": "Auditly Accessibility Health Score",
+                    "score_disclaimer": "Automated health score only; it is not a WCAG conformance certification.",
+                    "axe_core_version": "4.8.2",
+                },
             }
-            
-        except Exception as e:
-            logging.error(f"axe-core scan failed for {url}: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "tool": "axe-core"
-            }
+        except Exception as exc:
+            logger.error("axe-core scan failed for %s: %s", url, exc)
+            return {"success": False, "error": str(exc), "tool": "axe-core"}
         finally:
             if page:
-                try:
-                    await page.close()
-                except Exception:
-                    pass
+                await page.close()
+            if context:
+                await context.close()
             if browser:
-                try:
-                    await browser.close()
-                except Exception:
-                    pass
+                await browser.close()
             if playwright:
-                try:
-                    await playwright.stop()
-                except Exception:
-                    pass
+                await playwright.stop()
 
     @staticmethod
     async def capture_visual_evidence(page, failed_issues: List[Dict]) -> Dict[str, Any]:
-        """Capture visual evidence for failed accessibility issues."""
+        evidence: Dict[str, Any] = {"full_page_screenshot": None, "issue_screenshots": {}}
         try:
-            evidence = {
-                "full_page_screenshot": None,
-                "issue_screenshots": {}
-            }
-            
-            all_selectors = []
-            issue_selectors = {}
-            
+            issue_selectors: Dict[str, List[str]] = {}
+            all_selectors: List[str] = []
             for issue in failed_issues:
-                issue_id = issue.get('id', '')
-                selectors = []
-                
-                if issue.get('selectors'):
-                    for sel in issue['selectors']:
-                        if isinstance(sel, list):
-                            selectors.extend(sel)
-                        else:
-                            selectors.append(sel)
-                
-                if issue.get('elements'):
-                    for element in issue['elements']:
-                        if element.get('target'):
-                            selectors.extend(element['target'])
-                
+                selectors: List[str] = []
+                for selector_group in issue.get("selectors", []):
+                    selectors.extend(selector_group if isinstance(selector_group, list) else [selector_group])
                 if selectors:
-                    issue_selectors[issue_id] = selectors
+                    issue_selectors[issue.get("id", "unknown")] = selectors
                     all_selectors.extend(selectors)
-            
+
             if all_selectors:
-                evidence["full_page_screenshot"] = await AccessibilityScanner.highlight_elements_on_page(
-                    page, all_selectors[:10]
-                )
+                evidence["full_page_screenshot"] = await AccessibilityScanner.highlight_elements_on_page(page, all_selectors)
             else:
-                screenshot_bytes = await page.screenshot(full_page=True, type='png')
-                evidence["full_page_screenshot"] = base64.b64encode(screenshot_bytes).decode('utf-8')
-            
+                evidence["full_page_screenshot"] = base64.b64encode(
+                    await page.screenshot(full_page=True, type="png")
+                ).decode("utf-8")
+
             for issue_id, selectors in list(issue_selectors.items())[:5]:
                 for selector in selectors[:3]:
-                    try:
-                        element_screenshot = await AccessibilityScanner.capture_element_screenshot(
-                            page, selector
-                        )
-                        if element_screenshot:
-                            evidence["issue_screenshots"][f"{issue_id}_{hash(selector)}"] = element_screenshot
-                            break
-                    except Exception:
-                        continue
-            
-            return evidence
-            
-        except Exception as e:
-            logging.error(f"Failed to capture visual evidence: {e}")
-            return {"full_page_screenshot": None, "issue_screenshots": {}}
-    
+                    screenshot = await AccessibilityScanner.capture_element_screenshot(page, selector)
+                    if screenshot:
+                        evidence["issue_screenshots"][f"{issue_id}_{abs(hash(selector))}"] = screenshot
+                        break
+        except Exception as exc:
+            logger.warning("Failed to capture visual evidence: %s", exc)
+        return evidence
+
     @staticmethod
     def calculate_axe_score(axe_results: Dict[str, Any]) -> int:
-        """Calculate accessibility score from axe results."""
-        try:
-            violations = axe_results.get("violations", [])
-            passes = axe_results.get("passes", [])
-            
-            impact_weights = {"critical": 10, "serious": 5, "moderate": 3, "minor": 1}
-            violation_score = 0
-            
-            for violation in violations:
-                impact = violation.get("impact", "minor")
-                node_count = len(violation.get("nodes", []))
-                violation_score += impact_weights.get(impact, 1) * node_count
-            
-            total_rules = len(violations) + len(passes)
-            if total_rules == 0:
-                return 85
-            
-            penalty = min(violation_score * 2, 85)
-            score = max(100 - penalty, 15)
-            
-            return int(score)
-        except Exception as e:
-            logging.error(f"Score calculation failed: {e}")
-            return 50
+        """Return a proprietary automated health score, not a WCAG conformance percentage."""
+        violations = axe_results.get("violations", [])
+        passes = axe_results.get("passes", [])
+        impact_weights = {"critical": 10, "serious": 5, "moderate": 3, "minor": 1}
+        weighted_failures = sum(
+            impact_weights.get(violation.get("impact") or "minor", 1) * max(1, len(violation.get("nodes", [])))
+            for violation in violations
+        )
+        passed_nodes = sum(max(1, len(rule.get("nodes", []))) for rule in passes)
+        denominator = passed_nodes + weighted_failures
+        if denominator == 0:
+            return 100
+        return max(0, min(100, round((passed_nodes / denominator) * 100)))
 
     @staticmethod
     def format_axe_issues(axe_results: Dict[str, Any]) -> Dict[str, Any]:
-        """Format axe-core results to standardized issues format."""
-        try:
-            passed = []
-            failed = []
-            incomplete = []
-            
-            violations = axe_results.get("violations", [])
-            for violation in violations:
-                nodes = violation.get("nodes", [])
-                failed.append({
-                    "id": violation.get("id", "unknown"),
-                    "description": violation.get("description", ""),
-                    "impact": violation.get("impact", "moderate"),
-                    "help": violation.get("help", ""),
-                    "helpUrl": violation.get("helpUrl", ""),
-                    "count": len(nodes),
-                    "wcag": violation.get("tags", []),
-                    "selectors": [node.get("target", []) for node in nodes],
-                    "elements": [
-                        {
-                            "html": node.get("html", ""),
-                            "target": node.get("target", []),
-                            "failureSummary": node.get("failureSummary", "")
-                        } for node in nodes
-                    ],
-                    "type": "violation"
-                })
-            
-            passes = axe_results.get("passes", [])
-            for passed_test in passes:
-                nodes = passed_test.get("nodes", [])
-                passed.append({
-                    "id": passed_test.get("id", "unknown"),
-                    "description": passed_test.get("description", ""),
-                    "help": passed_test.get("help", ""),
-                    "helpUrl": passed_test.get("helpUrl", ""),
-                    "count": len(nodes),
-                    "wcag": passed_test.get("tags", []),
-                    "type": "passed_test"
-                })
-            
-            incomplete_tests = axe_results.get("incomplete", [])
-            for incomplete_test in incomplete_tests:
-                nodes = incomplete_test.get("nodes", [])
-                incomplete.append({
-                    "id": incomplete_test.get("id", "unknown"),
-                    "description": incomplete_test.get("description", ""),
-                    "help": incomplete_test.get("help", ""),
-                    "helpUrl": incomplete_test.get("helpUrl", ""),
-                    "count": len(nodes),
-                    "wcag": incomplete_test.get("tags", []),
-                    "reason": "Automated testing cannot determine if this passes or fails",
-                    "type": "incomplete_test"
-                })
-            
-            return {
-                "passed": passed,
-                "failed": failed,
-                "incomplete": incomplete
+        failed = []
+        for violation in axe_results.get("violations", []):
+            nodes = violation.get("nodes", [])
+            failed.append({
+                "id": violation.get("id", "unknown"),
+                "description": violation.get("description", ""),
+                "impact": violation.get("impact", "moderate"),
+                "help": violation.get("help", ""),
+                "helpUrl": violation.get("helpUrl", ""),
+                "count": len(nodes),
+                "wcag": violation.get("tags", []),
+                "selectors": [node.get("target", []) for node in nodes],
+                "elements": [
+                    {
+                        "html": node.get("html", ""),
+                        "target": node.get("target", []),
+                        "failureSummary": node.get("failureSummary", ""),
+                    }
+                    for node in nodes
+                ],
+                "type": "violation",
+            })
+
+        passed = [
+            {
+                "id": rule.get("id", "unknown"),
+                "description": rule.get("description", ""),
+                "help": rule.get("help", ""),
+                "helpUrl": rule.get("helpUrl", ""),
+                "count": len(rule.get("nodes", [])),
+                "wcag": rule.get("tags", []),
+                "type": "passed_test",
             }
-            
-        except Exception as e:
-            logging.error(f"Axe results formatting failed: {e}")
-            return {"passed": [], "failed": [], "incomplete": []}
+            for rule in axe_results.get("passes", [])
+        ]
+        incomplete = [
+            {
+                "id": rule.get("id", "unknown"),
+                "description": rule.get("description", ""),
+                "help": rule.get("help", ""),
+                "helpUrl": rule.get("helpUrl", ""),
+                "count": len(rule.get("nodes", [])),
+                "wcag": rule.get("tags", []),
+                "reason": "Automated testing cannot determine if this passes or fails",
+                "type": "incomplete_test",
+            }
+            for rule in axe_results.get("incomplete", [])
+        ]
+        return {"passed": passed, "failed": failed, "incomplete": incomplete}
 
 
-async def perform_accessibility_scan(scan_id: str, url: str, tool: ScanTool):
-    """Background task to perform accessibility scan with visual evidence."""
+async def perform_accessibility_scan(scan_id: str, url: str, tool: ScanTool | str):
     try:
-        logging.info(f"Starting accessibility scan for {url} using {tool}")
-        
-        if tool == ScanTool.axe_core:
+        normalized_tool = ScanTool(tool)
+        if normalized_tool == ScanTool.axe_core:
             result = await AccessibilityScanner.scan_with_axe(url)
         else:
-            # For external APIs, import and use the external scanner
             from .external_scanners import runScanWithExternalApi
             await runScanWithExternalApi(scan_id)
             return
-        
+
         if result["success"]:
+            evidence = result.get("visual_evidence") or {}
+            full_page = await store_base64_png(
+                evidence.get("full_page_screenshot"), f"{scan_id}/full-page.png"
+            )
+            issue_refs = {}
+            for evidence_id, screenshot in (evidence.get("issue_screenshots") or {}).items():
+                issue_refs[evidence_id] = await store_base64_png(
+                    screenshot, f"{scan_id}/issues/{evidence_id}.png"
+                )
             update_data = {
                 "status": ScanStatus.completed,
                 "score": result["score"],
-                "issues": result["results"]
+                "issues": result["results"],
+                "full_page_screenshot": full_page,
+                "evidence_screenshots": issue_refs,
+                "scan_metadata": result.get("scan_metadata", {}),
             }
-            
-            if result.get("visual_evidence"):
-                visual_evidence = result["visual_evidence"]
-                update_data.update({
-                    "full_page_screenshot": visual_evidence.get("full_page_screenshot"),
-                    "evidence_screenshots": visual_evidence.get("issue_screenshots", {}),
-                    "scan_metadata": result.get("scan_metadata", {})
-                })
-            
-            await db.scan_requests.update_one(
-                {"id": scan_id},
-                {"$set": update_data}
-            )
-            logging.info(f"Scan completed successfully for {url} with visual evidence")
         else:
-            await db.scan_requests.update_one(
-                {"id": scan_id},
-                {"$set": {
-                    "status": ScanStatus.error,
-                    "error_message": result["error"]
-                }}
-            )
-            logging.error(f"Scan failed for {url}: {result['error']}")
-    
-    except Exception as e:
-        logging.error(f"Scan task failed for {scan_id}: {e}")
+            update_data = {"status": ScanStatus.error, "error_message": result["error"]}
+
+        await db.scan_requests.update_one({"id": scan_id}, {"$set": update_data})
+    except Exception as exc:
+        logger.exception("Scan task failed for %s", scan_id)
         await db.scan_requests.update_one(
             {"id": scan_id},
-            {"$set": {
-                "status": ScanStatus.error,
-                "error_message": str(e)
-            }}
+            {"$set": {"status": ScanStatus.error, "error_message": str(exc)}},
         )

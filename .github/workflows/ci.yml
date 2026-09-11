@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: ci-only-secret-key-with-at-least-32-characters
+      REFRESH_COOKIE_SECURE: "false"
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r backend/requirements.txt
+      - run: python -m compileall backend
+      - name: Import FastAPI application
+        run: python -c "from backend.main import app; assert app"
+      - name: Validate Docker Compose configuration
+        env:
+          SECRET_KEY: ci-only-secret-key-with-at-least-32-characters
+        run: docker compose config --quiet
+      - name: Test SSRF controls
+        run: python -m pytest -q backend/tests/unit/test_security_hardening.py::test_private_and_unsafe_targets_are_rejected
+      - name: Test refresh-token primitives
+        run: python -m pytest -q backend/tests/unit/test_security_hardening.py::test_refresh_tokens_are_random_and_only_hashes_need_persistence
+      - name: Test accessibility health score
+        run: python -m pytest -q backend/tests/unit/test_security_hardening.py::test_health_score_is_bounded_and_not_magic_floor
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+      - run: corepack enable
+      # The inherited lockfile is refreshed separately; pure-lockfile keeps existing
+      # resolutions while CI validates the Vite migration and newly declared packages.
+      - run: yarn install --pure-lockfile --non-interactive
+        working-directory: frontend
+      - run: yarn build
+        working-directory: frontend
+        env:
+          VITE_BACKEND_URL: http://localhost:8000

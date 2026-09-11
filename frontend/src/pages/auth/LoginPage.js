@@ -1,10 +1,11 @@
 /**
  * Login Page
- * 
+ *
  * Accessibility Features:
  * - Emerald focus rings for keyboard navigation
- * - Proper ARIA labels and roles
- * - Screen reader announcements for errors
+ * - Proper labels and required-state announcements
+ * - Screen reader announcements for authentication errors
+ * - 44px password visibility target for touch and motor accessibility
  */
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
@@ -33,21 +34,21 @@ const LoginPage = () => {
     setError("");
 
     const result = await login(email, password);
-    
+
     if (result.success) {
       const from = location.state?.from?.pathname || '/';
       navigate(from);
     } else {
       setError(result.error);
     }
-    
+
     setLoading(false);
   };
 
   return (
-    <div className="min-h-[calc(100vh-73px)] bg-slate-950 flex items-center justify-center px-4">
+    <div className="min-h-[calc(100vh-73px)] bg-slate-950 flex items-center justify-center px-4 py-10 sm:py-12">
       <main id="main-content" className="w-full max-w-md" role="main" aria-labelledby="login-heading">
-        <div className="text-center mb-8">
+        <div className="text-center mb-7">
           <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-4" aria-hidden="true">
             <Shield className="w-9 h-9 text-white" aria-hidden="true" />
           </div>
@@ -58,8 +59,9 @@ const LoginPage = () => {
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8">
           <form onSubmit={handleSubmit} className="space-y-5" aria-labelledby="login-heading">
             {error && (
-              <div 
-                className="bg-red-500/10 border border-red-500/20 text-red-300 px-4 py-3 rounded-lg text-sm" 
+              <div
+                id="login-error-message"
+                className="bg-red-500/10 border border-red-500/20 text-red-300 px-4 py-3 rounded-lg text-sm"
                 data-testid="login-error"
                 role="alert"
                 aria-live="polite"
@@ -84,6 +86,7 @@ const LoginPage = () => {
                 placeholder="you@company.com"
                 required
                 aria-required="true"
+                aria-describedby={error ? "login-error-message" : undefined}
                 autoComplete="email"
               />
             </div>
@@ -101,16 +104,17 @@ const LoginPage = () => {
                   data-testid="login-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 pr-12 bg-slate-800 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
+                  className="w-full px-4 py-3 pr-14 bg-slate-800 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
                   placeholder="Enter your password"
                   required
                   aria-required="true"
+                  aria-describedby={error ? "login-error-message" : undefined}
                   autoComplete="current-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-white transition-colors p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 inline-flex items-center justify-center text-slate-300 hover:text-white transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   aria-pressed={showPassword}
                 >
@@ -148,11 +152,11 @@ const LoginPage = () => {
               </Link>
             </p>
           </div>
-          
+
           <div className="mt-4 text-center">
-            <Link 
-              to="/forgot-password" 
-              className="text-slate-400 hover:text-slate-300 text-sm transition-colors underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded"
+            <Link
+              to="/forgot-password"
+              className="text-slate-300 hover:text-white text-sm transition-colors underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded"
               data-testid="forgot-password-link"
             >
               Forgot your password?

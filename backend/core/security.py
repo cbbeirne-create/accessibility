@@ -1,59 +1,114 @@
-"""
-Security utilities: password hashing, JWT tokens, authentication.
-"""
-import bcrypt as bcrypt_lib
-from datetime import datetime, timedelta
+"""Security utilities: password hashing, JWT tokens, authentication and refresh tokens."""
+import hashlib
+import secrets
+import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+
+import bcrypt as bcrypt_lib
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
+from pymongo import ReturnDocument
 
 from .config import settings
 from .database import db
 
-# Security scheme for Bearer token
 security = HTTPBearer()
 
 
 def get_password_hash(password: str) -> str:
-    """Hash password using bcrypt."""
-    # bcrypt only uses the first 72 bytes of a password
-    password_bytes = password.encode('utf-8')[:72]
-    salt = bcrypt_lib.gensalt()
-    hashed = bcrypt_lib.hashpw(password_bytes, salt)
-    return hashed.decode('utf-8')
+    password_bytes = password.encode("utf-8")[:72]
+    return bcrypt_lib.hashpw(password_bytes, bcrypt_lib.gensalt()).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify password against hash."""
-    password_bytes = plain_password.encode('utf-8')[:72]
-    hashed_bytes = hashed_password.encode('utf-8')
-    return bcrypt_lib.checkpw(password_bytes, hashed_bytes)
+    return bcrypt_lib.checkpw(plain_password.encode("utf-8")[:72], hashed_password.encode("utf-8"))
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create JWT token."""
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return encoded_jwt
+    if not settings.SECRET_KEY:
+        raise RuntimeError("SECRET_KEY is not configured")
+    now = datetime.now(timezone.utc)
+    expire = now + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    payload = {
+        **data,
+        "iat": now,
+        "exp": expire,
+        "jti": str(uuid.uuid4()),
+        "iss": settings.JWT_ISSUER,
+        "aud": settings.JWT_AUDIENCE,
+        "type": "access",
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def generate_refresh_token() -> str:
+    return secrets.token_urlsafe(48)
+
+
+def hash_refresh_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+async def store_refresh_token(user_id: str, token: str) -> None:
+    now = datetime.now(timezone.utc)
+    await db.refresh_tokens.insert_one({
+        "token_hash": hash_refresh_token(token),
+        "user_id": user_id,
+        "created_at": now,
+        "expires_at": now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        "revoked_at": None,
+    })
+
+
+async def rotate_refresh_token(token: str):
+    """Atomically consume a valid refresh token and return (user, replacement token)."""
+    token_hash = hash_refresh_token(token)
+    now = datetime.now(timezone.utc)
+    new_token = generate_refresh_token()
+    new_token_hash = hash_refresh_token(new_token)
+
+    record = await db.refresh_tokens.find_one_and_update(
+        {
+            "token_hash": token_hash,
+            "revoked_at": None,
+            "expires_at": {"$gt": now},
+        },
+        {"$set": {"revoked_at": now, "replaced_by": new_token_hash}},
+        return_document=ReturnDocument.BEFORE,
+    )
+    if not record:
+        return None, None
+
+    user = await db.users.find_one({"id": record["user_id"], "is_active": True})
+    if not user:
+        return None, None
+
+    await db.refresh_tokens.insert_one({
+        "token_hash": new_token_hash,
+        "user_id": user["id"],
+        "created_at": now,
+        "expires_at": now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        "revoked_at": None,
+    })
+    return user, new_token
+
+
+async def revoke_refresh_token(token: str) -> None:
+    await db.refresh_tokens.update_one(
+        {"token_hash": hash_refresh_token(token), "revoked_at": None},
+        {"$set": {"revoked_at": datetime.now(timezone.utc)}},
+    )
 
 
 async def get_user_by_email(email: str):
-    """Get user by email from database."""
-    user = await db.users.find_one({"email": email})
-    return user
+    return await db.users.find_one({"email": email})
 
 
 async def authenticate_user(email: str, password: str):
-    """Authenticate user with email and password."""
     user = await get_user_by_email(email)
-    if not user:
+    if not user or not user.get("is_active", True):
         return False
     if not verify_password(password, user["hashed_password"]):
         return False
@@ -61,36 +116,36 @@ async def authenticate_user(email: str, password: str):
 
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Get current authenticated user from JWT token."""
-    from ..models.user import User, TokenData
-    
+    from ..models.user import User
+
     credentials_exception = HTTPException(
         status_code=401,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     try:
-        payload = jwt.decode(
-            credentials.credentials, 
-            settings.SECRET_KEY, 
-            algorithms=[settings.ALGORITHM]
-        )
-        email: str = payload.get("sub")
-        if email is None:
+        if not settings.SECRET_KEY:
             raise credentials_exception
-        token_data = TokenData(email=email)
+        payload = jwt.decode(
+            credentials.credentials,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            audience=settings.JWT_AUDIENCE,
+            issuer=settings.JWT_ISSUER,
+        )
+        if payload.get("type") != "access":
+            raise credentials_exception
+        subject = payload.get("sub")
+        if not subject:
+            raise credentials_exception
     except JWTError:
         raise credentials_exception
-    
-    user = await get_user_by_email(token_data.email)
-    if user is None:
+
+    user = await db.users.find_one({"id": subject})
+    if user is None and "@" in subject:
+        user = await get_user_by_email(subject)
+    if user is None or not user.get("is_active", True):
         raise credentials_exception
-    
-    # Update last login
-    await db.users.update_one(
-        {"email": user["email"]},
-        {"$set": {"last_login": datetime.utcnow()}}
-    )
-    
+
     return User(**user)

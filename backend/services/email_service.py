@@ -1,464 +1,116 @@
-"""
-Email service for password reset and notifications.
-Uses SendGrid for production email delivery.
-"""
+"""Transactional email helpers for account security and team invitations."""
 import logging
 import secrets
+from html import escape
 from typing import Optional
 
 from ..core.config import settings
 
+logger = logging.getLogger(__name__)
+
 
 def generate_password_reset_token() -> str:
-    """Generate a cryptographically secure password reset token."""
     return secrets.token_urlsafe(32)
 
 
 def generate_verification_token() -> str:
-    """Generate a cryptographically secure email verification token."""
     return secrets.token_urlsafe(32)
 
 
-def send_password_reset_email(email: str, reset_token: str, user_name: Optional[str] = None) -> bool:
-    """
-    Send password reset email via SendGrid.
-    Returns True if email was sent successfully, False otherwise.
-    """
-    from sendgrid import SendGridAPIClient
-    from sendgrid.helpers.mail import Mail, Email, To, Content
-    
-    sendgrid_api_key = settings.SENDGRID_API_KEY
-    sender_email = settings.SENDER_EMAIL
-    frontend_url = settings.FRONTEND_URL
-    
-    # Check if SendGrid is configured
-    if not sendgrid_api_key or sendgrid_api_key.startswith('your_'):
-        logging.warning("SendGrid not configured - password reset email not sent")
-        # In development, log the reset link for testing
-        reset_link = f"{frontend_url}/reset-password?token={reset_token}"
-        logging.info(f"[DEV] Password reset link for {email}: {reset_link}")
-        return True  # Return True so the flow continues in development
-    
-    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
-    display_name = user_name or email.split('@')[0]
-    
-    # Branded HTML email template matching Auditly's Enterprise theme
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Reset Your Auditly Password</title>
-    </head>
-    <body style="margin: 0; padding: 0; background-color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-        <table role="presentation" style="width: 100%; border-collapse: collapse;">
-            <tr>
-                <td style="padding: 40px 20px;">
-                    <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #1e293b; border-radius: 16px; overflow: hidden;">
-                        <!-- Header -->
-                        <tr>
-                            <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, rgba(52, 211, 153, 0.1), rgba(20, 184, 166, 0.1));">
-                                <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #34d399, #14b8a6); border-radius: 16px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
-                                    <span style="color: white; font-size: 28px; font-weight: bold;">A</span>
-                                </div>
-                                <h1 style="color: #ffffff; font-size: 24px; margin: 0 0 8px; font-weight: 700;">Auditly</h1>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 0;">Website Accessibility Scanner</p>
-                            </td>
-                        </tr>
-                        
-                        <!-- Content -->
-                        <tr>
-                            <td style="padding: 30px 40px;">
-                                <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 16px; font-weight: 600;">Reset Your Password</h2>
-                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
-                                    Hi {display_name},
-                                </p>
-                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
-                                    We received a request to reset your Auditly account password. Click the button below to create a new password:
-                                </p>
-                                
-                                <!-- CTA Button -->
-                                <table role="presentation" style="width: 100%; margin: 32px 0;">
-                                    <tr>
-                                        <td style="text-align: center;">
-                                            <a href="{reset_link}" 
-                                               style="display: inline-block; padding: 16px 32px; background: linear-gradient(135deg, #34d399, #14b8a6); color: #ffffff; text-decoration: none; font-weight: 600; font-size: 16px; border-radius: 12px; box-shadow: 0 4px 14px rgba(52, 211, 153, 0.25);">
-                                                Reset Password
-                                            </a>
-                                        </td>
-                                    </tr>
-                                </table>
-                                
-                                <p style="color: #94a3b8; font-size: 13px; line-height: 1.6; margin: 0 0 16px;">
-                                    This link will expire in <strong style="color: #f59e0b;">1 hour</strong> for security reasons.
-                                </p>
-                                
-                                <p style="color: #94a3b8; font-size: 13px; line-height: 1.6; margin: 0 0 16px;">
-                                    If you didn't request this password reset, you can safely ignore this email. Your password won't be changed.
-                                </p>
-                                
-                                <!-- Fallback Link -->
-                                <div style="background-color: #0f172a; border-radius: 8px; padding: 16px; margin-top: 24px;">
-                                    <p style="color: #64748b; font-size: 12px; margin: 0 0 8px;">
-                                        If the button doesn't work, copy and paste this link:
-                                    </p>
-                                    <p style="color: #34d399; font-size: 12px; margin: 0; word-break: break-all;">
-                                        {reset_link}
-                                    </p>
-                                </div>
-                            </td>
-                        </tr>
-                        
-                        <!-- Footer -->
-                        <tr>
-                            <td style="padding: 24px 40px; border-top: 1px solid #334155; text-align: center;">
-                                <p style="color: #64748b; font-size: 12px; margin: 0 0 8px;">
-                                    This email was sent by Auditly
-                                </p>
-                                <p style="color: #64748b; font-size: 12px; margin: 0;">
-                                    WCAG 2.1 AA Compliant Accessibility Scanning
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
-    
-    # Plain text fallback for accessibility
-    plain_text = f"""
-    Reset Your Auditly Password
-    
-    Hi {display_name},
-    
-    We received a request to reset your Auditly account password. 
-    
-    Click this link to reset your password:
-    {reset_link}
-    
-    This link will expire in 1 hour for security reasons.
-    
-    If you didn't request this password reset, you can safely ignore this email.
-    
-    - The Auditly Team
-    """
-    
-    try:
-        message = Mail(
-            from_email=Email(sender_email, "Auditly"),
-            to_emails=To(email),
-            subject="Reset Your Auditly Password",
-            plain_text_content=Content("text/plain", plain_text),
-            html_content=Content("text/html", html_content)
-        )
-        
-        sg = SendGridAPIClient(sendgrid_api_key)
-        response = sg.send(message)
-        
-        if response.status_code == 202:
-            logging.info(f"Password reset email sent to {email}")
-            return True
-        else:
-            logging.error(f"SendGrid returned status {response.status_code}")
-            return False
-            
-    except Exception as e:
-        logging.error(f"Failed to send password reset email: {e}")
+def _send_email(email: str, subject: str, plain_text: str, html_content: str) -> bool:
+    """Send an email through SendGrid without ever logging sensitive action links."""
+    if not settings.SENDGRID_API_KEY:
+        logger.warning("SendGrid is not configured; skipped transactional email to %s", email)
         return False
+
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Content, Email, Mail, To
+
+        message = Mail(
+            from_email=Email(settings.SENDER_EMAIL, "Auditly"),
+            to_emails=To(email),
+            subject=subject,
+            plain_text_content=Content("text/plain", plain_text),
+            html_content=Content("text/html", html_content),
+        )
+        response = SendGridAPIClient(settings.SENDGRID_API_KEY).send(message)
+        if response.status_code in {200, 202}:
+            logger.info("Transactional email sent to %s", email)
+            return True
+        logger.error("SendGrid returned status %s for %s", response.status_code, email)
+        return False
+    except Exception as exc:
+        logger.error("Failed to send transactional email to %s: %s", email, exc)
+        return False
+
+
+def _email_html(title: str, greeting: str, body: str, action_label: str, action_url: str, expiry: str) -> str:
+    safe_title = escape(title)
+    safe_greeting = escape(greeting)
+    safe_body = escape(body)
+    safe_label = escape(action_label)
+    safe_url = escape(action_url, quote=True)
+    safe_expiry = escape(expiry)
+    return f"""<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{safe_title}</title></head>
+<body style="margin:0;padding:0;background:#0f172a;color:#e2e8f0;font-family:Arial,sans-serif">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0f172a">
+    <tr><td style="padding:32px 16px">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:auto;background:#1e293b;border-radius:12px">
+        <tr><td style="padding:32px">
+          <h1 style="margin:0 0 8px;color:#ffffff;font-size:24px">Auditly</h1>
+          <p style="margin:0 0 28px;color:#94a3b8">Automated website accessibility monitoring</p>
+          <h2 style="color:#ffffff;font-size:20px">{safe_title}</h2>
+          <p style="line-height:1.6">{safe_greeting}</p>
+          <p style="line-height:1.6">{safe_body}</p>
+          <p style="margin:28px 0;text-align:center"><a href="{safe_url}" style="display:inline-block;background:#059669;color:#fff;padding:14px 22px;border-radius:8px;text-decoration:none;font-weight:bold">{safe_label}</a></p>
+          <p style="font-size:13px;color:#94a3b8">This link expires {safe_expiry}.</p>
+          <p style="font-size:12px;color:#94a3b8;word-break:break-all">If the button does not work, copy this link: <a href="{safe_url}" style="color:#5eead4">{safe_url}</a></p>
+          <hr style="border:0;border-top:1px solid #334155;margin:28px 0">
+          <p style="font-size:12px;color:#94a3b8">Auditly automated findings help prioritise accessibility work. They are not a certification of WCAG conformance.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
+def send_password_reset_email(email: str, reset_token: str, user_name: Optional[str] = None) -> bool:
+    link = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+    name = user_name or email.split("@")[0]
+    body = "We received a request to reset your Auditly password. If you did not request this, you can ignore this email."
+    plain = f"Auditly password reset\n\nHi {name},\n\n{body}\n\nReset your password: {link}\n\nThis link expires in 1 hour."
+    return _send_email(
+        email,
+        "Reset your Auditly password",
+        plain,
+        _email_html("Reset your password", f"Hi {name},", body, "Reset password", link, "in 1 hour"),
+    )
 
 
 def send_verification_email(email: str, verification_token: str, user_name: Optional[str] = None) -> bool:
-    """
-    Send email verification email via SendGrid.
-    Returns True if email was sent successfully, False otherwise.
-    """
-    from sendgrid import SendGridAPIClient
-    from sendgrid.helpers.mail import Mail, Email, To, Content
-    
-    sendgrid_api_key = settings.SENDGRID_API_KEY
-    sender_email = settings.SENDER_EMAIL
-    frontend_url = settings.FRONTEND_URL
-    
-    # Check if SendGrid is configured
-    if not sendgrid_api_key or sendgrid_api_key.startswith('your_'):
-        logging.warning("SendGrid not configured - verification email not sent")
-        # In development, log the verification link for testing
-        verify_link = f"{frontend_url}/verify-email?token={verification_token}"
-        logging.info(f"[DEV] Email verification link for {email}: {verify_link}")
-        return True  # Return True so the flow continues in development
-    
-    verify_link = f"{frontend_url}/verify-email?token={verification_token}"
-    display_name = user_name or email.split('@')[0]
-    
-    # Branded HTML email template matching Auditly's Enterprise theme
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Verify Your Auditly Email</title>
-    </head>
-    <body style="margin: 0; padding: 0; background-color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-        <table role="presentation" style="width: 100%; border-collapse: collapse;">
-            <tr>
-                <td style="padding: 40px 20px;">
-                    <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #1e293b; border-radius: 16px; overflow: hidden;">
-                        <!-- Header -->
-                        <tr>
-                            <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, rgba(52, 211, 153, 0.1), rgba(20, 184, 166, 0.1));">
-                                <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #34d399, #14b8a6); border-radius: 16px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
-                                    <span style="color: white; font-size: 28px; font-weight: bold;">A</span>
-                                </div>
-                                <h1 style="color: #ffffff; font-size: 24px; margin: 0 0 8px; font-weight: 700;">Auditly</h1>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 0;">Website Accessibility Scanner</p>
-                            </td>
-                        </tr>
-                        
-                        <!-- Content -->
-                        <tr>
-                            <td style="padding: 30px 40px;">
-                                <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 16px; font-weight: 600;">Welcome to Auditly!</h2>
-                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
-                                    Hi {display_name},
-                                </p>
-                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
-                                    Thank you for signing up! Please verify your email address to unlock all features of your Auditly account.
-                                </p>
-                                
-                                <!-- CTA Button -->
-                                <table role="presentation" style="width: 100%; margin: 32px 0;">
-                                    <tr>
-                                        <td style="text-align: center;">
-                                            <a href="{verify_link}" 
-                                               style="display: inline-block; padding: 16px 32px; background: linear-gradient(135deg, #34d399, #14b8a6); color: #ffffff; text-decoration: none; font-weight: 600; font-size: 16px; border-radius: 12px; box-shadow: 0 4px 14px rgba(52, 211, 153, 0.25);">
-                                                Verify Email Address
-                                            </a>
-                                        </td>
-                                    </tr>
-                                </table>
-                                
-                                <p style="color: #94a3b8; font-size: 13px; line-height: 1.6; margin: 0 0 16px;">
-                                    This link will expire in <strong style="color: #f59e0b;">24 hours</strong> for security reasons.
-                                </p>
-                                
-                                <p style="color: #94a3b8; font-size: 13px; line-height: 1.6; margin: 0 0 16px;">
-                                    If you didn't create an account with Auditly, you can safely ignore this email.
-                                </p>
-                                
-                                <!-- Fallback Link -->
-                                <div style="background-color: #0f172a; border-radius: 8px; padding: 16px; margin-top: 24px;">
-                                    <p style="color: #64748b; font-size: 12px; margin: 0 0 8px;">
-                                        If the button doesn't work, copy and paste this link:
-                                    </p>
-                                    <p style="color: #34d399; font-size: 12px; margin: 0; word-break: break-all;">
-                                        {verify_link}
-                                    </p>
-                                </div>
-                            </td>
-                        </tr>
-                        
-                        <!-- Footer -->
-                        <tr>
-                            <td style="padding: 24px 40px; border-top: 1px solid #334155; text-align: center;">
-                                <p style="color: #64748b; font-size: 12px; margin: 0 0 8px;">
-                                    This email was sent by Auditly
-                                </p>
-                                <p style="color: #64748b; font-size: 12px; margin: 0;">
-                                    WCAG 2.1 AA Compliant Accessibility Scanning
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
-    
-    # Plain text fallback for accessibility
-    plain_text = f"""
-    Welcome to Auditly!
-    
-    Hi {display_name},
-    
-    Thank you for signing up! Please verify your email address by clicking this link:
-    {verify_link}
-    
-    This link will expire in 24 hours for security reasons.
-    
-    If you didn't create an account with Auditly, you can safely ignore this email.
-    
-    - The Auditly Team
-    """
-    
-    try:
-        message = Mail(
-            from_email=Email(sender_email, "Auditly"),
-            to_emails=To(email),
-            subject="Verify Your Auditly Email Address",
-            plain_text_content=Content("text/plain", plain_text),
-            html_content=Content("text/html", html_content)
-        )
-        
-        sg = SendGridAPIClient(sendgrid_api_key)
-        response = sg.send(message)
-        
-        if response.status_code == 202:
-            logging.info(f"Verification email sent to {email}")
-            return True
-        else:
-            logging.error(f"SendGrid returned status {response.status_code}")
-            return False
-            
-    except Exception as e:
-        logging.error(f"Failed to send verification email: {e}")
-        return False
+    link = f"{settings.FRONTEND_URL}/verify-email?token={verification_token}"
+    name = user_name or email.split("@")[0]
+    body = "Verify your email address before running accessibility scans or scheduled monitoring."
+    plain = f"Verify your Auditly email\n\nHi {name},\n\n{body}\n\nVerify: {link}\n\nThis link expires in 24 hours."
+    return _send_email(
+        email,
+        "Verify your Auditly email address",
+        plain,
+        _email_html("Verify your email", f"Hi {name},", body, "Verify email", link, "in 24 hours"),
+    )
 
 
 async def send_team_invite_email(email: str, org_name: str, inviter_name: str, invite_token: str) -> bool:
-    """
-    Send team invite email via SendGrid.
-    Returns True if email was sent successfully, False otherwise.
-    """
-    from sendgrid import SendGridAPIClient
-    from sendgrid.helpers.mail import Mail, Email, To, Content
-    
-    sendgrid_api_key = settings.SENDGRID_API_KEY
-    sender_email = settings.SENDER_EMAIL
-    frontend_url = settings.FRONTEND_URL
-    
-    # Check if SendGrid is configured
-    if not sendgrid_api_key or sendgrid_api_key.startswith('your_'):
-        logging.warning("SendGrid not configured - team invite email not sent")
-        # In development, log the invite link for testing
-        invite_link = f"{frontend_url}/team?invite={invite_token}"
-        logging.info(f"[DEV] Team invite link for {email}: {invite_link}")
-        return True  # Return True so the flow continues in development
-    
-    invite_link = f"{frontend_url}/team?invite={invite_token}"
-    
-    # Branded HTML email template
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>You're Invited to Join a Team on Auditly</title>
-    </head>
-    <body style="margin: 0; padding: 0; background-color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-        <table role="presentation" style="width: 100%; border-collapse: collapse;">
-            <tr>
-                <td style="padding: 40px 20px;">
-                    <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #1e293b; border-radius: 16px; overflow: hidden;">
-                        <!-- Header -->
-                        <tr>
-                            <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, rgba(52, 211, 153, 0.1), rgba(20, 184, 166, 0.1));">
-                                <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #34d399, #14b8a6); border-radius: 16px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
-                                    <span style="color: white; font-size: 28px; font-weight: bold;">A</span>
-                                </div>
-                                <h1 style="color: #ffffff; font-size: 24px; margin: 0 0 8px; font-weight: 700;">Auditly</h1>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 0;">Website Accessibility Scanner</p>
-                            </td>
-                        </tr>
-                        
-                        <!-- Content -->
-                        <tr>
-                            <td style="padding: 30px 40px;">
-                                <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 16px; font-weight: 600;">You're Invited!</h2>
-                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
-                                    <strong style="color: #34d399;">{inviter_name}</strong> has invited you to join the team <strong style="color: #ffffff;">"{org_name}"</strong> on Auditly.
-                                </p>
-                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
-                                    As a team member, you'll have access to shared accessibility scans, reports, and analytics.
-                                </p>
-                                
-                                <!-- CTA Button -->
-                                <table role="presentation" style="width: 100%; margin: 32px 0;">
-                                    <tr>
-                                        <td style="text-align: center;">
-                                            <a href="{invite_link}" 
-                                               style="display: inline-block; padding: 16px 32px; background: linear-gradient(135deg, #34d399, #14b8a6); color: #ffffff; text-decoration: none; font-weight: 600; font-size: 16px; border-radius: 12px; box-shadow: 0 4px 14px rgba(52, 211, 153, 0.25);">
-                                                Accept Invitation
-                                            </a>
-                                        </td>
-                                    </tr>
-                                </table>
-                                
-                                <p style="color: #94a3b8; font-size: 13px; line-height: 1.6; margin: 0 0 16px;">
-                                    This invitation will expire in <strong style="color: #f59e0b;">7 days</strong>.
-                                </p>
-                                
-                                <!-- Fallback Link -->
-                                <div style="background-color: #0f172a; border-radius: 8px; padding: 16px; margin-top: 24px;">
-                                    <p style="color: #64748b; font-size: 12px; margin: 0 0 8px;">
-                                        If the button doesn't work, copy and paste this link:
-                                    </p>
-                                    <p style="color: #34d399; font-size: 12px; margin: 0; word-break: break-all;">
-                                        {invite_link}
-                                    </p>
-                                </div>
-                            </td>
-                        </tr>
-                        
-                        <!-- Footer -->
-                        <tr>
-                            <td style="padding: 24px 40px; border-top: 1px solid #334155; text-align: center;">
-                                <p style="color: #64748b; font-size: 12px; margin: 0 0 8px;">
-                                    This email was sent by Auditly
-                                </p>
-                                <p style="color: #64748b; font-size: 12px; margin: 0;">
-                                    WCAG 2.1 AA Compliant Accessibility Scanning
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
-    
-    plain_text = f"""
-    You're Invited to Join a Team on Auditly!
-    
-    {inviter_name} has invited you to join the team "{org_name}" on Auditly.
-    
-    As a team member, you'll have access to shared accessibility scans, reports, and analytics.
-    
-    Click here to accept: {invite_link}
-    
-    This invitation will expire in 7 days.
-    
-    - The Auditly Team
-    """
-    
-    try:
-        message = Mail(
-            from_email=Email(sender_email, "Auditly"),
-            to_emails=To(email),
-            subject=f"You're invited to join {org_name} on Auditly",
-            plain_text_content=Content("text/plain", plain_text),
-            html_content=Content("text/html", html_content)
-        )
-        
-        sg = SendGridAPIClient(sendgrid_api_key)
-        response = sg.send(message)
-        
-        if response.status_code == 202:
-            logging.info(f"Team invite email sent to {email}")
-            return True
-        else:
-            logging.error(f"SendGrid returned status {response.status_code}")
-            return False
-            
-    except Exception as e:
-        logging.error(f"Failed to send team invite email: {e}")
-        return False
+    link = f"{settings.FRONTEND_URL}/team?invite={invite_token}"
+    body = f'{inviter_name} invited you to join the team "{org_name}" on Auditly to share scans, findings, and monitoring history.'
+    plain = f"Auditly team invitation\n\n{body}\n\nAccept invitation: {link}\n\nThis link expires in 7 days."
+    return _send_email(
+        email,
+        f"Join {org_name} on Auditly",
+        plain,
+        _email_html("Team invitation", "You have been invited to Auditly.", body, "Accept invitation", link, "in 7 days"),
+    )
