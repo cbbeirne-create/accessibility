@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
 const baseURL = `${BACKEND_URL}/api`;
 
 const api = axios.create({
@@ -10,7 +10,6 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Separate client prevents the main 401 interceptor recursively intercepting refresh failures.
 const sessionClient = axios.create({
   baseURL,
   headers: { 'Content-Type': 'application/json' },
