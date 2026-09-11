@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # MongoDB Database
   mongodb:
     image: mongo:7.0
     container_name: accessibility_scanner_db
@@ -11,8 +10,6 @@ services:
     volumes:
       - mongodb_data:/data/db
       - ./mongodb/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
-    ports:
-      - "27017:27017"
     networks:
       - scanner_network
     healthcheck:
@@ -20,9 +17,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 20s
 
-  # Backend API
   backend:
     build:
       context: ./backend
@@ -30,9 +26,19 @@ services:
     container_name: accessibility_scanner_backend
     restart: unless-stopped
     environment:
-      - MONGO_URL=mongodb://mongodb:27017
-      - DB_NAME=accessibility_scanner
-      - PLAYWRIGHT_BROWSERS_PATH=/home/scanner/.cache/ms-playwright
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      MONGO_URL: mongodb://mongodb:27017
+      DB_NAME: accessibility_scanner
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
+      REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE:-false}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRO_PRICE_ID: ${STRIPE_PRO_PRICE_ID:-}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDER_EMAIL: ${SENDER_EMAIL:-noreply@auditly.com}
     ports:
       - "8000:8000"
     depends_on:
@@ -40,42 +46,37 @@ services:
         condition: service_healthy
     networks:
       - scanner_network
-    volumes:
-      - ./backend/reports:/app/reports
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health/live"]
       interval: 30s
-      timeout: 30s
+      timeout: 5s
       retries: 3
-      start_period: 60s
+      start_period: 30s
 
-  # Frontend Web App
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL:-http://localhost:8000}
     container_name: accessibility_scanner_frontend
     restart: unless-stopped
-    environment:
-      - REACT_APP_BACKEND_URL=http://localhost:8000
     ports:
       - "80:80"
-      - "443:443"
     depends_on:
       backend:
         condition: service_healthy
     networks:
       - scanner_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
-      start_period: 30s
+      start_period: 15s
 
 volumes:
   mongodb_data:
-    driver: local
 
 networks:
   scanner_network:
