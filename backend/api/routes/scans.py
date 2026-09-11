@@ -1,5 +1,4 @@
 """Scan API routes: create, retrieve, export, compare and manage accessibility scans."""
-import base64
 import json
 import logging
 from typing import List
@@ -19,6 +18,7 @@ from ...services.entitlements import (
     release_scan_quota,
     reserve_scan_quota,
 )
+from ...services.evidence_storage import load_png
 from ...services.external_scanners import runScanWithExternalApi
 from ...services.pdf_generator import ReportExporter
 from ...services.playwright_engine import perform_accessibility_scan
@@ -252,11 +252,16 @@ async def get_scan_screenshot(scan_id: str, current_user: User = Depends(get_cur
     scan_data = await get_scan_by_id_for_user(scan_id, current_user)
     if not scan_data:
         raise HTTPException(status_code=404, detail="Scan not found")
-    screenshot_data = scan_data.get("full_page_screenshot")
-    if not screenshot_data:
+    screenshot_ref = scan_data.get("full_page_screenshot")
+    if not screenshot_ref:
         raise HTTPException(status_code=404, detail="Screenshot not available")
+    try:
+        image_bytes = await load_png(screenshot_ref)
+    except Exception as exc:
+        logger.exception("Failed to load screenshot evidence for %s", scan_id)
+        raise HTTPException(status_code=502, detail="Screenshot evidence could not be loaded") from exc
     return Response(
-        content=base64.b64decode(screenshot_data),
+        content=image_bytes,
         media_type="image/png",
         headers={"Content-Disposition": f"inline; filename=scan_{scan_id[:8]}_screenshot.png"},
     )
