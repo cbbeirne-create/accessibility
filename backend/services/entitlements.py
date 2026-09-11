@@ -56,19 +56,21 @@ async def get_scan_by_id_for_user(scan_id: str, user: User):
 
 
 async def reserve_scan_quota(user: User) -> bool:
-    """Atomically reserve one monthly scan for the user.
-
-    Pro/effectively-Pro users are unlimited. Free users are incremented only if still below
-    the configured limit, closing the concurrent-request quota race.
-    """
+    """Atomically reserve one monthly scan for the user."""
     limits = await get_limits(user)
     limit = limits["monthly_scans"]
     if limit == -1:
-        await db.users.update_one({"id": user.id}, {"$inc": {"scans_used_this_month": 1}})
-        return True
+        result = await db.users.update_one({"id": user.id}, {"$inc": {"scans_used_this_month": 1}})
+        return result.modified_count == 1
 
     result = await db.users.update_one(
-        {"id": user.id, "scans_used_this_month": {"$lt": limit}},
+        {
+            "id": user.id,
+            "$or": [
+                {"scans_used_this_month": {"$lt": limit}},
+                {"scans_used_this_month": {"$exists": False}},
+            ],
+        },
         {"$inc": {"scans_used_this_month": 1}},
     )
     return result.modified_count == 1
