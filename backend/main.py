@@ -6,7 +6,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from backend.api import api_router
 from backend.core.config import settings
-from backend.core.database import close_db_connection
+from backend.core.database import close_db_connection, ensure_indexes
 from backend.core.rate_limit import RateLimitMiddleware
 from backend.services.scheduler_service import start_scheduler, stop_scheduler
 
@@ -39,6 +39,7 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     settings.validate_runtime()
+    await ensure_indexes()
     logger.info("Auditly API starting in %s mode", settings.ENVIRONMENT)
     await start_scheduler()
 
