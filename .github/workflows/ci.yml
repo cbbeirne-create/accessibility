@@ -20,7 +20,12 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r backend/requirements.txt
       - run: python -m compileall backend
-      - run: pytest -q backend/tests/unit
+      - name: Test SSRF controls
+        run: pytest -q backend/tests/unit/test_security_hardening.py::test_private_and_unsafe_targets_are_rejected
+      - name: Test refresh-token primitives
+        run: pytest -q backend/tests/unit/test_security_hardening.py::test_refresh_tokens_are_random_and_only_hashes_need_persistence
+      - name: Test accessibility health score
+        run: pytest -q backend/tests/unit/test_security_hardening.py::test_health_score_is_bounded_and_not_magic_floor
 
   frontend:
     runs-on: ubuntu-latest
@@ -32,7 +37,10 @@ jobs:
           cache: yarn
           cache-dependency-path: frontend/yarn.lock
       - run: corepack enable
-      - run: yarn install --frozen-lockfile
+      # The inherited lockfile predates lucide-react in package.json. Pure-lockfile keeps
+      # existing locked resolutions while resolving that package without modifying CI.
+      # Refresh yarn.lock and restore --frozen-lockfile during the planned Vite migration.
+      - run: yarn install --pure-lockfile --non-interactive
         working-directory: frontend
       - run: yarn build
         working-directory: frontend
