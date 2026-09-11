@@ -50,11 +50,6 @@ jobs:
       - name: Build backend container
         run: docker build -f backend/Dockerfile -t auditly-backend-ci .
       - name: Verify Chromium launches as non-root worker user
-        run: >-
-          docker run --rm
-          -e ENVIRONMENT=development
-          -e SECRET_KEY=ci-secret-key-that-is-long-enough-for-tests
-          auditly-backend-ci
-          python -c "import asyncio; from backend.services.playwright_engine import AccessibilityScanner; async def x():\n p,b=await AccessibilityScanner.setup_playwright_browser(); print('chromium-ok'); await b.close(); await p.stop()\n; asyncio.run(x())"
+        run: docker run --rm -e ENVIRONMENT=development -e SECRET_KEY=ci-secret-key-that-is-long-enough-for-tests auditly-backend-ci python backend/tests/smoke_browser.py
       - name: Build frontend container
         run: docker build -f frontend/Dockerfile -t auditly-frontend-ci frontend
