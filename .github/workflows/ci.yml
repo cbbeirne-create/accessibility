@@ -20,6 +20,12 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r backend/requirements.txt
       - run: python -m compileall backend
+      - name: Import FastAPI application
+        run: python -c "from backend.main import app; assert app"
+      - name: Validate Docker Compose configuration
+        env:
+          SECRET_KEY: ci-only-secret-key-with-at-least-32-characters
+        run: docker compose config --quiet
       - name: Test SSRF controls
         run: pytest -q backend/tests/unit/test_security_hardening.py::test_private_and_unsafe_targets_are_rejected
       - name: Test refresh-token primitives
