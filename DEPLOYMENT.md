@@ -40,6 +40,7 @@ S3_BUCKET=
 S3_REGION=
 S3_ENDPOINT_URL=
 S3_PUBLIC_BASE_URL=
+# Standard AWS_* credentials or your platform's workload identity are used by boto3.
 
 # Worker capacity. Start small and measure memory use.
 MAX_CONCURRENT_SCANS=2
@@ -66,9 +67,11 @@ docker compose up -d
 Local endpoints with the supplied Compose file:
 
 - Frontend: `http://localhost`
-- API: `http://localhost:8000`
-- Liveness: `http://localhost:8000/api/health/live`
-- Readiness: `http://localhost:8000/api/health/ready`
+- API (through the trusted frontend proxy): `http://localhost/api/...`
+- Liveness: `http://localhost/api/health/live`
+- Readiness: `http://localhost/api/health/ready`
+
+The backend container's port 8000 is deliberately not published to the host. For standalone local backend development, `uvicorn backend.main:app --port 8000` exposes it directly.
 
 OpenAPI/Swagger documentation is disabled when `ENVIRONMENT=production`. It remains available in development.
 
@@ -91,13 +94,13 @@ Browser
                               S3/R2 screenshots (recommended)
 ```
 
-MongoDB is intentionally not published on a host port by `docker-compose.yml`.
+MongoDB and the API are intentionally not published on host ports by `docker-compose.yml`; Nginx is the trusted public ingress. The supplied stack sets `TRUST_PROXY_HEADERS=true` only on the internally proxied API so rate limiting can use the original client address from Nginx. If you expose the API directly in another deployment, keep this disabled unless your ingress reliably overwrites forwarded headers.
 
 ## HTTPS and cookies
 
 Production refresh tokens are HttpOnly cookies. Put the public site behind HTTPS and set `COOKIE_SECURE=true`. TLS termination can live at a cloud load balancer, reverse proxy, CDN, or ingress controller. Do not expose a production login over plain HTTP.
 
-If frontend and API are deployed on separate origins, set both `FRONTEND_URL` and `CORS_ALLOWED_ORIGINS` explicitly and review the cookie `SameSite`/domain configuration. Same-origin `/api` proxying is simpler and preferred.
+If frontend and API are deployed on separate origins, set both `FRONTEND_URL` and `CORS_ALLOWED_ORIGINS` explicitly and review the cookie `SameSite`/domain configuration. Same-origin `/api` proxying is simpler and preferred. The supplied Nginx Content Security Policy also assumes same-origin API traffic.
 
 ## Browser-worker isolation
 
@@ -116,7 +119,7 @@ The application also performs DNS/IP and per-request SSRF checks, but infrastruc
 
 When `S3_BUCKET` is configured, full-page and issue screenshots are stored outside MongoDB. The adapter supports standard S3 and S3-compatible endpoints. Without object storage, development installations retain a Base64 fallback in MongoDB; that fallback is not recommended for sustained production usage because screenshots can make documents large.
 
-If `S3_PUBLIC_BASE_URL` is omitted, screenshots remain retrievable by the authenticated API using their storage keys. If you use a public base URL, ensure the bucket/content is appropriate for public access before setting it.
+If `S3_PUBLIC_BASE_URL` is omitted, screenshots remain private and are retrieved by authenticated API endpoints using their storage keys. If you use a public base URL, ensure the bucket/content is appropriate for public access before setting it.
 
 ## Stripe
 
@@ -160,7 +163,7 @@ For managed production infrastructure, prefer automated encrypted backups with t
 - unique `SECRET_KEY` stored in the platform secret manager
 - HTTPS enabled and `COOKIE_SECURE=true`
 - explicit CORS origin(s), never `*`
-- MongoDB not public
+- MongoDB and backend API not directly public
 - worker cannot reach private infrastructure where egress controls are available
 - Stripe webhook secret configured if billing is enabled
 - verified SendGrid sender/domain if email is enabled
@@ -168,6 +171,14 @@ For managed production infrastructure, prefer automated encrypted backups with t
 - CI is passing
 - database backups enabled and restore tested
 - dependency/security update process established
+
+## Upgrade notes from the previous architecture
+
+- Existing browser access tokens stored by the old frontend are no longer used; users may need to sign in again after deployment.
+- Password-reset and email-verification tokens are now stored hashed. Links issued by an older deployment may need to be re-requested after cutover.
+- Scans are now queued. The worker service must be running or scan requests will remain pending.
+- The frontend build uses Vite/npm rather than Create React App/yarn.
+- Deploy API, worker and frontend from the same revision to avoid temporary contract mismatches during cutover.
 
 ## Score and compliance wording
 
