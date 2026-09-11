@@ -1,9 +1,11 @@
-"""Stripe subscription API routes: checkout and idempotent webhooks."""
+"""Stripe subscription API routes: checkout and retry-safe idempotent webhooks."""
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
 from ...core.config import settings
 from ...core.database import db
@@ -54,6 +56,42 @@ async def create_checkout_session(current_user: User = Depends(get_current_user)
         raise HTTPException(status_code=500, detail="Failed to create checkout session") from exc
 
 
+async def _claim_stripe_event(event: dict) -> bool:
+    """Claim a new/failed/stale event while rejecting duplicate active or completed delivery."""
+    now = datetime.now(timezone.utc)
+    try:
+        claimed = await db.stripe_events.find_one_and_update(
+            {
+                "event_id": event["id"],
+                "$or": [
+                    {"status": "failed"},
+                    {"status": "processing", "lock_until": {"$lte": now}},
+                    {"status": {"$exists": False}},
+                ],
+            },
+            {
+                "$setOnInsert": {
+                    "event_id": event["id"],
+                    "event_type": event["type"],
+                    "received_at": now,
+                },
+                "$set": {
+                    "status": "processing",
+                    "lock_until": now + timedelta(minutes=5),
+                    "last_attempt_at": now,
+                    "error": None,
+                },
+                "$inc": {"attempts": 1},
+            },
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+        return claimed is not None
+    except DuplicateKeyError:
+        # Existing event is either completed or currently being processed under a live lease.
+        return False
+
+
 @router.post("/webhook")
 async def stripe_webhook(request: Request):
     if not settings.STRIPE_WEBHOOK_SECRET:
@@ -67,18 +105,7 @@ async def stripe_webhook(request: Request):
     except stripe.error.SignatureVerificationError as exc:
         raise HTTPException(status_code=400, detail="Invalid signature") from exc
 
-    # Atomically claim the event. Stripe retries delivery; only the first worker processes it.
-    claim = await db.stripe_events.update_one(
-        {"event_id": event["id"]},
-        {"$setOnInsert": {
-            "event_id": event["id"],
-            "event_type": event["type"],
-            "received_at": datetime.now(timezone.utc),
-            "status": "processing",
-        }},
-        upsert=True,
-    )
-    if claim.upserted_id is None:
+    if not await _claim_stripe_event(event):
         return {"status": "already_processed"}
 
     try:
@@ -91,15 +118,21 @@ async def stripe_webhook(request: Request):
             await handle_subscription_canceled(obj)
         elif event["type"] == "invoice.payment_succeeded":
             await handle_payment_succeeded(obj)
+
         await db.stripe_events.update_one(
             {"event_id": event["id"]},
-            {"$set": {"status": "processed", "processed_at": datetime.now(timezone.utc)}},
+            {"$set": {
+                "status": "processed",
+                "processed_at": datetime.now(timezone.utc),
+                "lock_until": None,
+                "error": None,
+            }},
         )
         return {"status": "success"}
     except Exception as exc:
         await db.stripe_events.update_one(
             {"event_id": event["id"]},
-            {"$set": {"status": "failed", "error": str(exc)}},
+            {"$set": {"status": "failed", "error": str(exc), "lock_until": None}},
         )
         logger.exception("Stripe webhook processing failed")
         raise HTTPException(status_code=500, detail="Webhook processing failed") from exc
