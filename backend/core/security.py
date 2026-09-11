@@ -19,6 +19,12 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _utc(value: Optional[datetime]) -> Optional[datetime]:
+    if value is None:
+        return None
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
 def get_password_hash(password: str) -> str:
     password_bytes = password.encode('utf-8')[:72]
     return bcrypt_lib.hashpw(password_bytes, bcrypt_lib.gensalt()).decode('utf-8')
@@ -58,7 +64,12 @@ def create_access_token(*, user_id: str, expires_delta: Optional[timedelta] = No
 async def create_refresh_token(*, user_id: str) -> str:
     jti = str(uuid.uuid4())
     expires_at = _now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    token = _encode_token(user_id=user_id, token_type='refresh', expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS), jti=jti)
+    token = _encode_token(
+        user_id=user_id,
+        token_type='refresh',
+        expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        jti=jti,
+    )
     await db.refresh_sessions.insert_one({
         'jti_hash': hashlib.sha256(jti.encode()).hexdigest(),
         'user_id': user_id,
@@ -89,7 +100,8 @@ async def rotate_refresh_token(token: str) -> tuple[str, str]:
     payload = decode_token(token, 'refresh')
     jti_hash = hashlib.sha256(payload['jti'].encode()).hexdigest()
     session = await db.refresh_sessions.find_one({'jti_hash': jti_hash, 'revoked_at': None})
-    if not session or session.get('expires_at') <= _now():
+    expires_at = _utc(session.get('expires_at')) if session else None
+    if not session or not expires_at or expires_at <= _now():
         raise HTTPException(status_code=401, detail='Refresh session expired')
     await db.refresh_sessions.update_one({'_id': session['_id']}, {'$set': {'revoked_at': _now()}})
     user = await db.users.find_one({'id': payload['sub'], 'is_active': {'$ne': False}})
