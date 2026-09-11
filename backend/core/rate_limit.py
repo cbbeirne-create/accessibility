@@ -1,7 +1,9 @@
 """Small dependency-free rate limiter for sensitive API routes.
 
-This is intentionally conservative and process-local. In horizontally scaled production
-replace the backing store with Redis while retaining the same route policy.
+The backing store is process-local. In horizontally scaled production replace it with
+Redis while retaining the same route policy. Client identity intentionally uses the
+socket peer address; only add proxy-header trust when the deployment has a configured
+trusted reverse proxy boundary.
 """
 import asyncio
 import time
@@ -29,9 +31,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     @staticmethod
     def _client_key(request: Request) -> str:
-        forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-        if forwarded:
-            return forwarded
         return request.client.host if request.client else "unknown"
 
     async def dispatch(self, request: Request, call_next):
