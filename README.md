@@ -29,7 +29,7 @@ The API does not execute untrusted browser scans inside request handlers. Manual
 
 - **Backend:** Python, FastAPI, Motor/MongoDB
 - **Scanner:** Playwright + pinned axe-core
-- **Frontend:** React, React Router, Tailwind CSS
+- **Frontend:** React, Vite, React Router, Tailwind CSS
 - **Billing:** Stripe
 - **Email:** SendGrid
 - **Reports:** JSON and PDF
@@ -126,9 +126,11 @@ For non-container development, the scanner can use the pinned axe-core CDN fallb
 ```bash
 cd frontend
 corepack enable
-yarn install --frozen-lockfile
-REACT_APP_BACKEND_URL=http://localhost:8000 yarn start
+yarn install
+VITE_BACKEND_URL=http://localhost:8000 yarn dev
 ```
+
+The Vite development server listens on port 5173 by default. `VITE_BACKEND_URL` is embedded at build time for production images.
 
 ## Tests and CI
 
@@ -137,8 +139,9 @@ The pull-request CI workflow:
 - installs backend dependencies
 - compiles backend Python modules
 - runs security-focused unit tests
-- installs frontend dependencies from `yarn.lock`
-- performs a production frontend build
+- validates Docker Compose configuration
+- installs frontend dependencies
+- performs a production Vite frontend build
 
 Locally:
 
@@ -154,6 +157,7 @@ The hardened application includes:
 - no default JWT signing secret
 - 15-minute access tokens with issuer/audience/JTI claims
 - rotating opaque refresh tokens in Secure/HttpOnly cookies
+- in-memory-only access tokens in the browser (no persistent bearer token in Web Storage)
 - refresh-token hashing, revocation and TTL cleanup
 - verified-email gating for scan execution
 - tenant-scoped scan access
@@ -161,7 +165,7 @@ The hardened application includes:
 - SSRF protections on initial navigation and browser HTTP(S) subrequests
 - browser sandbox retained
 - configured CORS rather than wildcard origins
-- sensitive-route rate limiting
+- distributed Mongo-backed sensitive-route rate limiting
 - Stripe webhook signature validation and event idempotency
 - non-public MongoDB networking
 - optional encrypted S3-compatible screenshot storage
