@@ -1,6 +1,6 @@
 # Auditly — Production Deployment Guide
 
-Auditly is composed of four runtime services: the React frontend, the FastAPI API, a dedicated Playwright scan worker, and MongoDB. Browser scans are queued durably in MongoDB and executed by workers rather than inside API requests.
+Auditly is composed of four runtime services: the React/Vite frontend, the FastAPI API, a dedicated Playwright scan worker, and MongoDB. Browser scans are queued durably in MongoDB and executed by workers rather than inside API requests.
 
 ## Prerequisites
 
@@ -33,10 +33,10 @@ SECRET_KEY=<at-least-32-random-characters>
 FRONTEND_URL=https://app.example.com
 ALLOWED_ORIGINS=https://app.example.com
 REFRESH_COOKIE_SECURE=true
-REACT_APP_BACKEND_URL=https://api.example.com
+VITE_BACKEND_URL=https://api.example.com
 ```
 
-`SECRET_KEY` has no fallback. The API intentionally refuses to start if it is missing or too short. Production also refuses wildcard CORS, a non-HTTPS frontend URL, or insecure refresh cookies.
+`SECRET_KEY` has no fallback. The API intentionally refuses to start if it is missing or too short. Production also refuses wildcard CORS, a non-HTTPS frontend URL, or insecure refresh cookies. `VITE_BACKEND_URL` is a frontend build-time value, not a runtime secret.
 
 ### Billing
 
@@ -88,7 +88,7 @@ docker compose up -d --build
 
 Services:
 
-- `frontend`: static React application served by Nginx
+- `frontend`: static React/Vite application served by Nginx
 - `backend`: FastAPI/Gunicorn API and lightweight scheduler
 - `worker`: dedicated Playwright/axe-core job worker
 - `mongodb`: internal database, not published to the host network
@@ -123,13 +123,13 @@ docker compose up -d --scale worker=3
 
 The Mongo-backed queue uses leases and retries. A worker crash does not lose a queued scan, and a completed scan is not re-run merely because a worker died before acknowledging the job. Scheduled jobs are also claimed with leases, preventing multiple API instances from executing the same due schedule.
 
-The API can likewise be replicated behind a load balancer. The built-in sensitive-route rate limiter is process-local; for a large horizontally scaled deployment, replace its backing store with Redis or an edge/WAF rate limiter while retaining the endpoint policy.
+The API can likewise be replicated behind a load balancer. Sensitive-route rate limits are stored in MongoDB by client/path/time window, so limits remain shared across API replicas. An edge/WAF limiter can still be added as an additional first line of defence for larger deployments.
 
 ## 6. Database indexes and upgrades
 
-The API and scan worker call `ensure_indexes()` at startup, so security, tenancy, TTL, queue, and idempotency indexes are applied to existing databases as well as fresh Docker volumes.
+The API and scan worker call `ensure_indexes()` at startup, so security, tenancy, TTL, queue, rate-limit, and idempotency indexes are applied to existing databases as well as fresh Docker volumes.
 
-Refresh-token documents use a Mongo TTL index and are automatically expired. Stripe events and scheduled scan result notifications have uniqueness constraints for idempotency.
+Refresh-token and rate-limit documents use Mongo TTL indexes and are automatically expired. Stripe events and scheduled scan result notifications have uniqueness constraints for idempotency.
 
 Before a production upgrade:
 
@@ -165,7 +165,7 @@ Copy the archive to durable storage and periodically test restoration. If screen
 - Stripe webhook secret configured and endpoint registered
 - SendGrid sender verified
 - Object storage configured for evidence if scans may generate large screenshots
-- Infrastructure/edge rate limiting configured for scaled deployments
+- Optional edge/WAF rate limiting configured for larger public deployments
 - Regular dependency/container updates enabled
 - Database and object-store backups tested
 - Monitoring/error reporting connected to your chosen provider
