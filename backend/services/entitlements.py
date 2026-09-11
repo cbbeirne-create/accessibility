@@ -44,10 +44,20 @@ async def get_limits(user: User) -> Dict[str, Any]:
 
 
 async def get_scan_scope(user: User) -> Dict[str, Any]:
-    """Database scope for scan objects visible to this user."""
+    """Database scope for scan objects visible to this user.
+
+    Personal scans created before organization_id was added may not contain the field,
+    so the personal scope deliberately includes both null and missing values.
+    """
     if user.organization_id:
         return {"organization_id": user.organization_id}
-    return {"user_id": user.id, "organization_id": None}
+    return {
+        "user_id": user.id,
+        "$or": [
+            {"organization_id": None},
+            {"organization_id": {"$exists": False}},
+        ],
+    }
 
 
 async def get_scan_by_id_for_user(scan_id: str, user: User):
