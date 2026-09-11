@@ -73,11 +73,8 @@ export const authAPI = {
     return { access_token: token, token_type: 'bearer' };
   },
   logout: async () => {
-    try {
-      return (await api.post('/auth/logout', {}, { _skipAuthRefresh: true })).data;
-    } finally {
-      setToken(null);
-    }
+    try { return (await api.post('/auth/logout', {}, { _skipAuthRefresh: true })).data; }
+    finally { setToken(null); }
   },
   forgotPassword: async (email) => (await api.post('/auth/forgot-password', { email }, { _skipAuthRefresh: true })).data,
   verifyResetToken: async (token) => (await api.get('/auth/verify-reset-token', { params: { token }, _skipAuthRefresh: true })).data,
@@ -95,15 +92,14 @@ export const scansAPI = {
   exportPDF: async (scanId) => (await api.get(`/scans/${scanId}/export/pdf`, { responseType: 'blob' })).data,
   exportJSON: async (scanId) => (await api.get(`/scans/${scanId}/export/json`)).data,
   getScreenshot: async (scanId) => (await api.get(`/scans/${scanId}/screenshot`, { responseType: 'blob' })).data,
+  getEvidenceScreenshot: async (scanId, evidenceId) => (await api.get(`/scans/${scanId}/evidence/${encodeURIComponent(evidenceId)}`, { responseType: 'blob' })).data,
   getHistoryByUrl: async (url) => (await api.get('/scans/history/by-url', { params: { url } })).data,
   compare: async (a, b) => (await api.get(`/scans/compare/${a}/${b}`)).data,
   getStats: async () => (await api.get('/scans/stats')).data,
   getScannedUrls: async () => (await api.get('/scans/urls')).data,
 };
 
-export const subscriptionAPI = {
-  createCheckoutSession: async () => (await api.post('/subscription/create-checkout-session')).data,
-};
+export const subscriptionAPI = { createCheckoutSession: async () => (await api.post('/subscription/create-checkout-session')).data };
 
 export const scheduledScansAPI = {
   getAll: async () => (await api.get('/scheduled-scans')).data,
