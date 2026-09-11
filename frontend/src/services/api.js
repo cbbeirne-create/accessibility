@@ -19,20 +19,11 @@ const sessionClient = axios.create({
 });
 
 let authHandlers = { onLogout: null, onLogin: null };
+let accessToken = null;
+
 export const setAuthHandlers = (handlers = {}) => { authHandlers = { ...authHandlers, ...handlers }; };
-
-const getToken = () => {
-  try { return typeof window === 'undefined' ? null : localStorage.getItem('access_token'); }
-  catch { return null; }
-};
-
-const setToken = (token) => {
-  try {
-    if (typeof window === 'undefined') return;
-    if (token) localStorage.setItem('access_token', token);
-    else localStorage.removeItem('access_token');
-  } catch { /* storage may be unavailable */ }
-};
+export const getToken = () => accessToken;
+export const setToken = (token) => { accessToken = token || null; };
 
 api.interceptors.request.use((config) => {
   const token = getToken();
@@ -147,5 +138,5 @@ export const organizationsAPI = {
   transferOwnership: async (id, newOwnerId) => (await api.post(`/organizations/${id}/transfer-ownership`, { new_owner_id: newOwnerId })).data,
 };
 
-export { api as axiosInstance, getToken, setToken };
+export { api as axiosInstance };
 export default api;
