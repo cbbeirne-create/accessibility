@@ -2,6 +2,7 @@
 import base64
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
@@ -14,6 +15,7 @@ from .evidence_storage import store_base64_png
 from .url_security import UnsafeScanTarget, validate_scan_url
 
 logger = logging.getLogger(__name__)
+AXE_BUNDLE_PATH = Path(__file__).resolve().parent.parent / "vendor" / "axe.min.js"
 
 
 class AccessibilityScanner:
@@ -60,6 +62,17 @@ class AccessibilityScanner:
                 await route.abort("blockedbyclient")
 
         await page.route("**/*", guard)
+
+    @staticmethod
+    async def _inject_axe(page) -> None:
+        """Inject the pinned local axe-core bundle; CDN fallback is development-only."""
+        if AXE_BUNDLE_PATH.exists():
+            await page.add_script_tag(path=str(AXE_BUNDLE_PATH))
+            return
+        if settings.ENVIRONMENT == "production":
+            raise RuntimeError("Vendored axe-core bundle is missing from the production image")
+        logger.warning("Vendored axe-core bundle not found; using pinned development CDN fallback")
+        await page.add_script_tag(url="https://unpkg.com/axe-core@4.8.2/axe.min.js")
 
     @staticmethod
     async def capture_element_screenshot(page, selector: str) -> Optional[str]:
@@ -110,8 +123,7 @@ class AccessibilityScanner:
                 raise RuntimeError(f"Target returned HTTP {response.status}")
             await page.wait_for_timeout(1000)
 
-            # Pinned version for deterministic rule behavior. TODO: vendor axe-core in the image.
-            await page.add_script_tag(url="https://unpkg.com/axe-core@4.8.2/axe.min.js")
+            await AccessibilityScanner._inject_axe(page)
             axe_results = await page.evaluate("""
                 async () => {
                     if (typeof axe === 'undefined') throw new Error('axe-core not loaded');
