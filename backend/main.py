@@ -1,63 +1,54 @@
-"""
-Auditly - Website Accessibility Scanner
-Main FastAPI application entry point.
-
-This is the refactored modular architecture:
-- /core: Configuration, database, security utilities
-- /models: Pydantic models for users and scans
-- /services: Business logic (scanning, PDF generation, email)
-- /api/routes: API endpoints organized by domain
-"""
+"""Auditly FastAPI application entrypoint."""
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from starlette.middleware.cors import CORSMiddleware
 
-from backend.core.database import close_db_connection
 from backend.api import api_router
-from backend.services.scheduler_service import start_scheduler, stop_scheduler
+from backend.core.config import settings
+from backend.core.database import close_db_connection, ensure_indexes
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Create the main FastAPI app
 app = FastAPI(
-    title="Accessibility Scanner API",
-    description="Professional website accessibility scanning platform with visual evidence capture and comprehensive reporting.",
-    version="1.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json"
+    title='Accessibility Scanner API',
+    description='Website accessibility scanning, remediation evidence, monitoring and reporting.',
+    version='1.1.0',
+    docs_url='/api/docs' if settings.ENVIRONMENT != 'production' else None,
+    redoc_url='/api/redoc' if settings.ENVIRONMENT != 'production' else None,
+    openapi_url='/api/openapi.json' if settings.ENVIRONMENT != 'production' else None,
 )
-
-# Include API router
 app.include_router(api_router)
 
-# CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.CORS_ALLOWED_ORIGINS,
+    allow_methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allow_headers=['Authorization', 'Content-Type'],
 )
 
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on shutdown."""
-    await stop_scheduler()
-    await close_db_connection()
-    logger.info("Application shutdown complete")
+@app.middleware('http')
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    if settings.ENVIRONMENT == 'production':
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
 
 
-@app.on_event("startup")
+@app.on_event('startup')
 async def startup_event():
-    """Log startup and start background services."""
-    logger.info("Auditly API started successfully")
-    await start_scheduler()
-    logger.info("Background scheduler started")
+    await ensure_indexes()
+    logger.info('Auditly API started')
+
+
+@app.on_event('shutdown')
+async def shutdown_event():
+    await close_db_connection()
+    logger.info('Auditly API stopped')
