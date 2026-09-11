@@ -6,6 +6,7 @@ const collections = [
   'scan_requests',
   'scan_jobs',
   'refresh_tokens',
+  'rate_limits',
   'scheduled_scans',
   'notifications',
   'organizations',
@@ -35,6 +36,9 @@ db.scan_jobs.createIndex({ lock_until: 1 });
 db.refresh_tokens.createIndex({ token_hash: 1 }, { unique: true });
 db.refresh_tokens.createIndex({ user_id: 1, revoked_at: 1 });
 db.refresh_tokens.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 });
+
+db.rate_limits.createIndex({ key: 1, bucket_start: 1 }, { unique: true });
+db.rate_limits.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 });
 
 db.scheduled_scans.createIndex({ id: 1 }, { unique: true });
 db.scheduled_scans.createIndex({ user_id: 1, created_at: -1 });
