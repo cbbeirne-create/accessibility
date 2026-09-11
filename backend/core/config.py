@@ -52,11 +52,12 @@ class Settings:
     EQUALWEB_API_KEY: Optional[str] = os.environ.get('EQUALWEB_API_KEY')
     ACCESSIBE_API_KEY: Optional[str] = os.environ.get('ACCESSIBE_API_KEY')
 
-    # Scanner safety
+    # Scanner safety/runtime
     SCAN_ALLOWED_PORTS: List[int] = [int(p) for p in _csv('SCAN_ALLOWED_PORTS', '80,443')]
     SCAN_NAVIGATION_TIMEOUT_MS: int = int(os.environ.get('SCAN_NAVIGATION_TIMEOUT_MS', '30000'))
     SCAN_MAX_REDIRECTS: int = int(os.environ.get('SCAN_MAX_REDIRECTS', '8'))
     MAX_CONCURRENT_SCANS: int = int(os.environ.get('MAX_CONCURRENT_SCANS', '2'))
+    AXE_CORE_PATH: str = os.environ.get('AXE_CORE_PATH', str(ROOT_DIR / 'node_modules' / 'axe-core' / 'axe.min.js'))
 
     # Object storage (optional; DB base64 fallback remains for development)
     S3_BUCKET: Optional[str] = os.environ.get('S3_BUCKET')
@@ -75,7 +76,6 @@ class Settings:
             if not self.STRIPE_PRO_PRICE_ID and self.STRIPE_SECRET_KEY:
                 raise RuntimeError('STRIPE_PRO_PRICE_ID is required when Stripe is configured')
         elif not self.SECRET_KEY:
-            # Development-only ephemeral secret. It intentionally changes between processes.
             self.SECRET_KEY = os.urandom(32).hex()
 
 
