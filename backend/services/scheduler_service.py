@@ -117,16 +117,13 @@ class SchedulerService:
             "createdAt": now,
             "scheduled_scan_id": scheduled_scan["id"],
         }
-        inserted = False
         try:
             await self.db.scan_requests.insert_one(scan_data)
-            inserted = True
             await enqueue_scan(scan_id, url, "axe-core", scheduled_scan_id=scheduled_scan["id"])
             await self._advance_schedule(scheduled_scan, last_scan_id=scan_id)
         except Exception:
             logger.exception("Error queueing scheduled scan %s", scheduled_scan["id"])
-            if inserted:
-                await self.db.scan_requests.delete_one({"id": scan_id})
+            await self.db.scan_requests.delete_one({"id": scan_id, "status": "pending"})
             await release_scan_quota(user_id)
             await self._advance_schedule(scheduled_scan)
             await self.create_notification(
