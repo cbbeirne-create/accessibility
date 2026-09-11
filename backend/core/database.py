@@ -32,6 +32,7 @@ async def ensure_indexes() -> None:
     await db.scheduled_scans.create_index([("enabled", 1), ("next_run", 1), ("lock_until", 1)])
 
     await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
+    await db.notifications.create_index("event_key", unique=True, sparse=True)
     await db.organizations.create_index("id", unique=True)
     await db.organization_members.create_index([("organization_id", 1), ("user_id", 1)], unique=True)
     await db.organization_invites.create_index("token", unique=True)
