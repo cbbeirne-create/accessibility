@@ -42,8 +42,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: accessibility_scanner_backend
     restart: unless-stopped
     environment: *backend-env
@@ -63,8 +63,8 @@ services:
 
   worker:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     command: ["python", "-m", "backend.worker"]
     restart: unless-stopped
     environment: *backend-env
@@ -73,8 +73,6 @@ services:
         condition: service_healthy
     networks:
       - scanner_network
-    deploy:
-      replicas: 1
 
   frontend:
     build:
