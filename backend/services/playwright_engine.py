@@ -10,6 +10,7 @@ from playwright.async_api import async_playwright
 from ..core.config import settings
 from ..core.database import db
 from ..models.scan import ScanStatus, ScanTool
+from .evidence_storage import store_base64_png
 from .url_security import UnsafeScanTarget, validate_scan_url
 
 logger = logging.getLogger(__name__)
@@ -265,12 +266,20 @@ async def perform_accessibility_scan(scan_id: str, url: str, tool: ScanTool | st
 
         if result["success"]:
             evidence = result.get("visual_evidence") or {}
+            full_page = await store_base64_png(
+                evidence.get("full_page_screenshot"), f"{scan_id}/full-page.png"
+            )
+            issue_refs = {}
+            for evidence_id, screenshot in (evidence.get("issue_screenshots") or {}).items():
+                issue_refs[evidence_id] = await store_base64_png(
+                    screenshot, f"{scan_id}/issues/{evidence_id}.png"
+                )
             update_data = {
                 "status": ScanStatus.completed,
                 "score": result["score"],
                 "issues": result["results"],
-                "full_page_screenshot": evidence.get("full_page_screenshot"),
-                "evidence_screenshots": evidence.get("issue_screenshots", {}),
+                "full_page_screenshot": full_page,
+                "evidence_screenshots": issue_refs,
                 "scan_metadata": result.get("scan_metadata", {}),
             }
         else:
