@@ -1,0 +1,74 @@
+services:
+  - type: web
+    name: auditly-api
+    runtime: docker
+    region: frankfurt
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health/ready
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: REFRESH_COOKIE_SECURE
+        value: "true"
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: auditly
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: SENDER_EMAIL
+        sync: false
+      - key: SCAN_ALLOWED_PORTS
+        value: "80,443"
+      - key: SCAN_NAVIGATION_TIMEOUT_MS
+        value: "30000"
+      - key: EVIDENCE_S3_BUCKET
+        sync: false
+      - key: EVIDENCE_S3_PREFIX
+        value: auditly-evidence
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: AWS_REGION
+        value: eu-west-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+
+  - type: worker
+    name: auditly-scan-worker
+    runtime: docker
+    region: frankfurt
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    dockerCommand: python -m backend.worker
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: auditly
+      - key: SCAN_ALLOWED_PORTS
+        value: "80,443"
+      - key: SCAN_NAVIGATION_TIMEOUT_MS
+        value: "30000"
+      - key: EVIDENCE_S3_BUCKET
+        sync: false
+      - key: EVIDENCE_S3_PREFIX
+        value: auditly-evidence
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: AWS_REGION
+        value: eu-west-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
