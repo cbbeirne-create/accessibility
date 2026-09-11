@@ -1,17 +1,14 @@
-"""Small dependency-free rate limiter for sensitive API routes.
-
-The backing store is process-local. In horizontally scaled production replace it with
-Redis while retaining the same route policy. Client identity intentionally uses the
-socket peer address; only add proxy-header trust when the deployment has a configured
-trusted reverse proxy boundary.
-"""
-import asyncio
+"""Distributed rate limiting for sensitive API routes using MongoDB fixed windows."""
 import time
-from collections import defaultdict, deque
+from datetime import datetime, timedelta, timezone
 
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+
+from .database import db
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -24,13 +21,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         "/api/scans": (20, 60),
     }
 
-    def __init__(self, app):
-        super().__init__(app)
-        self.events = defaultdict(deque)
-        self.lock = asyncio.Lock()
-
     @staticmethod
     def _client_key(request: Request) -> str:
+        # Use the socket peer address unless/until an explicitly trusted reverse-proxy
+        # boundary is configured. This avoids accepting spoofable forwarding headers.
         return request.client.host if request.client else "unknown"
 
     async def dispatch(self, request: Request, call_next):
@@ -40,18 +34,38 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         limit, window = policy
         key = f"{request.url.path}:{self._client_key(request)}"
-        now = time.monotonic()
-        async with self.lock:
-            events = self.events[key]
-            while events and events[0] <= now - window:
-                events.popleft()
-            if len(events) >= limit:
-                retry_after = max(1, int(window - (now - events[0])))
-                return JSONResponse(
-                    {"detail": "Too many requests. Please try again later."},
-                    status_code=429,
-                    headers={"Retry-After": str(retry_after)},
-                )
-            events.append(now)
+        now_ts = int(time.time())
+        bucket_ts = (now_ts // window) * window
+        bucket_start = datetime.fromtimestamp(bucket_ts, tz=timezone.utc)
+        expires_at = bucket_start + timedelta(seconds=window + 60)
+        query = {"key": key, "bucket_start": bucket_start}
+        update = {
+            "$inc": {"count": 1},
+            "$setOnInsert": {"expires_at": expires_at},
+        }
+
+        try:
+            record = await db.rate_limits.find_one_and_update(
+                query,
+                update,
+                upsert=True,
+                return_document=ReturnDocument.AFTER,
+            )
+        except DuplicateKeyError:
+            # Two instances can race to create the same window. The unique index ensures
+            # one wins; the loser retries as a plain atomic increment.
+            record = await db.rate_limits.find_one_and_update(
+                query,
+                {"$inc": {"count": 1}},
+                return_document=ReturnDocument.AFTER,
+            )
+
+        if record and int(record.get("count", 0)) > limit:
+            retry_after = max(1, bucket_ts + window - now_ts)
+            return JSONResponse(
+                {"detail": "Too many requests. Please try again later."},
+                status_code=429,
+                headers={"Retry-After": str(retry_after)},
+            )
 
         return await call_next(request)
