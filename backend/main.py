@@ -7,6 +7,7 @@ from starlette.middleware.cors import CORSMiddleware
 from backend.api import api_router
 from backend.core.config import settings
 from backend.core.database import close_db_connection, ensure_indexes
+from backend.services.rate_limit import enforce_rate_limit
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -32,6 +33,14 @@ app.add_middleware(
 
 @app.middleware('http')
 async def security_headers(request: Request, call_next):
+    path = request.url.path
+    if request.method == 'POST':
+        if path in {'/api/auth/login', '/api/auth/refresh'}:
+            await enforce_rate_limit(request, f'auth:{path}', 20, 60)
+        elif path in {'/api/auth/signup', '/api/auth/forgot-password', '/api/auth/resend-verification'}:
+            await enforce_rate_limit(request, f'auth:{path}', 5, 300)
+        elif path == '/api/scans':
+            await enforce_rate_limit(request, 'scan:create', 10, 60)
     response = await call_next(request)
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
