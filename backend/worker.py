@@ -5,7 +5,9 @@ import signal
 import uuid
 from datetime import datetime, timezone
 
-from backend.core.database import close_db_connection, db
+from pymongo.errors import DuplicateKeyError
+
+from backend.core.database import close_db_connection, db, ensure_indexes
 from backend.models.scheduled import Notification
 from backend.services.playwright_engine import perform_accessibility_scan
 from backend.services.scan_queue import claim_scan_job, complete_scan_job, fail_scan_job
@@ -19,13 +21,12 @@ class ScanWorker:
         self.worker_id = str(uuid.uuid4())
         self.running = True
 
-    async def _notify_scheduled_result(self, job: dict) -> None:
+    async def _notify_scheduled_result(self, job: dict, scan: dict) -> None:
         scheduled_id = job.get("scheduled_scan_id")
         if not scheduled_id:
             return
-        scan = await db.scan_requests.find_one({"id": job["scan_id"]})
         scheduled = await db.scheduled_scans.find_one({"id": scheduled_id})
-        if not scan or not scheduled:
+        if not scheduled:
             return
 
         score = scan.get("score")
@@ -44,22 +45,36 @@ class ScanWorker:
                 else f"Your scheduled scan for {scan['url']} failed."
             ),
             data={"scan_id": scan["id"], "scheduled_id": scheduled_id, "url": scan["url"], "score": score},
-        )
-        await db.notifications.insert_one(notification.dict())
+        ).dict()
+        notification["event_key"] = f"scheduled-scan-result:{scan['id']}"
+        try:
+            await db.notifications.insert_one(notification)
+        except DuplicateKeyError:
+            pass
 
     async def run_job(self, job: dict) -> None:
         try:
-            await perform_accessibility_scan(job["scan_id"], job["url"], job["tool"])
             scan = await db.scan_requests.find_one({"id": job["scan_id"]})
+            if not scan:
+                await complete_scan_job(job["id"])
+                return
+
+            # A prior worker may have completed the browser work just before its lease expired.
+            if scan.get("status") != "completed":
+                await perform_accessibility_scan(job["scan_id"], job["url"], job["tool"])
+                scan = await db.scan_requests.find_one({"id": job["scan_id"]})
+
             if not scan or scan.get("status") != "completed":
                 raise RuntimeError((scan or {}).get("error_message") or "Scan did not complete")
+
+            await self._notify_scheduled_result(job, scan)
             await complete_scan_job(job["id"])
-            await self._notify_scheduled_result(job)
         except Exception as exc:
             logger.exception("Scan job %s failed", job.get("id"))
             await fail_scan_job(job, str(exc))
 
     async def run(self) -> None:
+        await ensure_indexes()
         logger.info("Scan worker %s started", self.worker_id)
         while self.running:
             job = await claim_scan_job(self.worker_id)
