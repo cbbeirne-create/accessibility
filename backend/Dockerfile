@@ -16,7 +16,10 @@ RUN pip install --no-cache-dir --upgrade pip \
     && chmod -R a+rX /ms-playwright
 
 COPY backend /app/backend
-RUN useradd --create-home --uid 1000 scanner \
+RUN mkdir -p /app/backend/vendor \
+    && curl -fsSL https://unpkg.com/axe-core@4.8.2/axe.min.js -o /app/backend/vendor/axe.min.js \
+    && test -s /app/backend/vendor/axe.min.js \
+    && useradd --create-home --uid 1000 scanner \
     && chown -R scanner:scanner /app
 USER scanner
 
