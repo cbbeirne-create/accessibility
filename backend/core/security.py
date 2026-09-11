@@ -9,6 +9,7 @@ import bcrypt as bcrypt_lib
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
+from pymongo import ReturnDocument
 
 from .config import settings
 from .database import db
@@ -62,14 +63,21 @@ async def store_refresh_token(user_id: str, token: str) -> None:
 
 
 async def rotate_refresh_token(token: str):
-    """Consume a valid refresh token and return (user, new_token)."""
+    """Atomically consume a valid refresh token and return (user, replacement token)."""
     token_hash = hash_refresh_token(token)
     now = datetime.now(timezone.utc)
-    record = await db.refresh_tokens.find_one({
-        "token_hash": token_hash,
-        "revoked_at": None,
-        "expires_at": {"$gt": now},
-    })
+    new_token = generate_refresh_token()
+    new_token_hash = hash_refresh_token(new_token)
+
+    record = await db.refresh_tokens.find_one_and_update(
+        {
+            "token_hash": token_hash,
+            "revoked_at": None,
+            "expires_at": {"$gt": now},
+        },
+        {"$set": {"revoked_at": now, "replaced_by": new_token_hash}},
+        return_document=ReturnDocument.BEFORE,
+    )
     if not record:
         return None, None
 
@@ -77,12 +85,13 @@ async def rotate_refresh_token(token: str):
     if not user:
         return None, None
 
-    new_token = generate_refresh_token()
-    await db.refresh_tokens.update_one(
-        {"token_hash": token_hash, "revoked_at": None},
-        {"$set": {"revoked_at": now, "replaced_by": hash_refresh_token(new_token)}},
-    )
-    await store_refresh_token(user["id"], new_token)
+    await db.refresh_tokens.insert_one({
+        "token_hash": new_token_hash,
+        "user_id": user["id"],
+        "created_at": now,
+        "expires_at": now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        "revoked_at": None,
+    })
     return user, new_token
 
 
@@ -133,7 +142,6 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except JWTError:
         raise credentials_exception
 
-    # New tokens use immutable user IDs. Email fallback supports existing sessions during rollout.
     user = await db.users.find_one({"id": subject})
     if user is None and "@" in subject:
         user = await get_user_by_email(subject)
