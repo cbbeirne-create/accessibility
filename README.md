@@ -1,88 +1,174 @@
-# Auditly — Website Accessibility Scanner
+# Auditly — Website Accessibility Monitoring
 
-Auditly is a web application that performs automated accessibility scans of websites, captures visual evidence, and produces developer and stakeholder-facing reports (JSON and tagged PDFs). It includes a FastAPI backend that performs scans (axe-core + external APIs) and a Create React App frontend for user flows, billing (Stripe) and report export.
+Auditly is a SaaS application for automated website accessibility testing, evidence capture, remediation guidance, trend tracking, scheduled monitoring, team collaboration and report export.
+
+Auditly uses axe-core for automated checks and produces an **Auditly Accessibility Health Score** to help teams prioritise work. The score is not a WCAG conformance percentage or certification, and automated testing does not replace manual accessibility review.
+
+## Architecture
+
+```text
+React frontend
+      |
+      v
+FastAPI API  ----> MongoDB
+      |                |
+      | enqueue        | durable jobs / schedules / auth state
+      v                |
+ Scan queue <----------+
+      |
+      v
+Playwright worker(s)
+      |
+      +--> axe-core
+      +--> optional S3-compatible evidence storage
+```
+
+The API does not execute untrusted browser scans inside request handlers. Manual and scheduled scans are placed on a durable Mongo-backed queue and processed by dedicated workers with leases and retries.
 
 ## Stack
-- Language(s): Python (backend), JavaScript/React (frontend)
-- Backend: FastAPI, Motor (MongoDB async client), Playwright for browser-based scans
-- Frontend: Create React App, Tailwind CSS
-- Notable libraries: FastAPI, Pydantic, Playwright, ReportLab (PDF generation), stripe, sendgrid
+
+- **Backend:** Python, FastAPI, Motor/MongoDB
+- **Scanner:** Playwright + pinned axe-core
+- **Frontend:** React, React Router, Tailwind CSS
+- **Billing:** Stripe
+- **Email:** SendGrid
+- **Reports:** JSON and PDF
+- **Evidence:** inline development storage or optional S3-compatible object storage
+- **Deployment:** Docker Compose with separate API and scan-worker services
+
+## Core product capabilities
+
+- Authenticated accessibility scans
+- SSRF-resistant public URL validation
+- Visual evidence capture
+- Affected DOM selectors and HTML snippets
+- WCAG/axe rule references and remediation guidance
+- Scan history and comparisons
+- Scheduled monitoring
+- Team/organization workspaces
+- Free/Pro entitlements
+- Stripe subscriptions
+- Email verification and password reset
+- JSON/PDF export
+- Durable worker queue with retries
 
 ## Repository layout
-```
-backend/        FastAPI app, scan services, API routes, Dockerfile
-frontend/       Create React App UI, Tailwind, Dockerfile
-app/            helper wrapper (contains frontend/) 
-mongodb/        example Mongo setup / scripts
-memory/         in-memory test helpers
-test_reports/   generated scan/test reports and remediation artifacts
-tests/          test suites for backend/frontend
+
+```text
+backend/
+  api/              FastAPI routes
+  core/             configuration, database, security, rate limiting
+  models/           Pydantic data models
+  services/         scanning, queue, entitlements, email, reports, storage
+  tests/            backend tests
+  worker.py         dedicated scan-worker process
+frontend/
+  src/              React application
+mongodb/             initialization/index definitions
+.github/workflows/   CI
+DEPLOYMENT.md        production deployment and security checklist
 docker-compose.yml
-deploy.sh
-DEPLOYMENT.md
+.env.example
 ```
 
-## Quickstart (development)
-1. Backend
+## Local development with Docker
+
+1. Copy the environment template:
 
 ```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-# provide env vars (see Environment) or copy .env.example -> .env
-uvicorn backend.main:app --host 0.0.0.0 --port 8000
+cp .env.example .env
 ```
 
-API docs: http://localhost:8000/api/docs
+2. Replace `SECRET_KEY` with a strong value of at least 32 characters:
 
-2. Frontend
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+3. Start the stack:
+
+```bash
+docker compose up --build
+```
+
+Default local endpoints:
+
+- Frontend: `http://localhost`
+- API: `http://localhost:8000`
+- API docs: `http://localhost:8000/api/docs`
+- Liveness: `http://localhost:8000/api/health/live`
+- Readiness: `http://localhost:8000/api/health/ready`
+
+MongoDB is deliberately not published to the host by the supplied Compose configuration.
+
+## Backend development
+
+From the repository root:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+export SECRET_KEY="replace-with-a-long-random-development-secret"
+uvicorn backend.main:app --reload --port 8000
+```
+
+Run a worker separately:
+
+```bash
+python -m backend.worker
+```
+
+For non-container development, the scanner can use the pinned axe-core CDN fallback if `backend/vendor/axe.min.js` is absent. Production images vendor the same pinned axe-core version at build time and do not depend on the CDN during scans.
+
+## Frontend development
 
 ```bash
 cd frontend
-yarn install
-yarn start
-# or npm install && npm start
+corepack enable
+yarn install --frozen-lockfile
+REACT_APP_BACKEND_URL=http://localhost:8000 yarn start
 ```
 
-3. Using docker-compose (both services)
+## Tests and CI
+
+The pull-request CI workflow:
+
+- installs backend dependencies
+- compiles backend Python modules
+- runs security-focused unit tests
+- installs frontend dependencies from `yarn.lock`
+- performs a production frontend build
+
+Locally:
 
 ```bash
-# from repo root
-docker-compose up --build
+pytest -q backend/tests/unit
+cd frontend && yarn build
 ```
 
-## Environment
-Create a backend/.env file (not committed) with at minimum:
-```
-MONGO_URL=mongodb://localhost:27017
-DB_NAME=auditly
-SECRET_KEY=<secure random value>
-FRONTEND_URL=http://localhost:3000
-# Optional for integrations
-STRIPE_SECRET_KEY=
-STRIPE_PUBLISHABLE_KEY=
-SENDGRID_API_KEY=
-WAVE_API_KEY=
-EQUALWEB_API_KEY=
-ACCESSIBE_API_KEY=
-```
+## Security model
 
-Notes:
-- Never commit secret keys. Use your platform secret store for production deployments.
-- CORS is permissive by default in development; restrict allowed origins in production.
+The hardened application includes:
 
-## Running tests
-- Backend: run pytest from the repository root or backend directory (tests are under backend/tests and tests/)
-- Frontend: `yarn test` inside frontend/
+- no default JWT signing secret
+- 15-minute access tokens with issuer/audience/JTI claims
+- rotating opaque refresh tokens in Secure/HttpOnly cookies
+- refresh-token hashing, revocation and TTL cleanup
+- verified-email gating for scan execution
+- tenant-scoped scan access
+- atomic usage quota reservation
+- SSRF protections on initial navigation and browser HTTP(S) subrequests
+- browser sandbox retained
+- configured CORS rather than wildcard origins
+- sensitive-route rate limiting
+- Stripe webhook signature validation and event idempotency
+- non-public MongoDB networking
+- optional encrypted S3-compatible screenshot storage
+- dedicated scan workers with durable queue leases/retries
 
-## Deployment
-See DEPLOYMENT.md and docker-compose.yml. The project includes Dockerfiles for backend and frontend; review them for production best practices (non-root user, multi-stage builds, pinned base images, environment secrets).
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the production checklist and environment contract.
 
-## Outstanding immediate docs items
-- Expand DEPLOYMENT.md with environment and production checklist (secrets, TLS, allowed origins, resource sizing).
-- Add CONTRIBUTING.md describing code style, tests, and PR process.
-- Add a README to `backend/` and `frontend/` with component-level details (entrypoints, major modules).
+## Accessibility product note
 
-## Contact / Support
-Open issues or PRs in this repository for documentation updates. For quick changes, I can open a PR that adds/updates additional documentation files (CONTRIBUTING.md, backend/README.md, DEPLOYMENT.md updates).
+No automated scanner can determine complete WCAG conformance. Auditly should be used to identify and prioritise machine-detectable issues, preserve evidence, guide remediation, and monitor regressions. Manual keyboard, screen-reader, zoom/reflow, cognitive/usability and assistive-technology testing remain necessary for a complete accessibility assessment.
