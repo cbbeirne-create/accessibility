@@ -120,6 +120,7 @@ const Navigation = () => {
               {isAuthenticated && <NotificationBell />}
               <button
                 type="button"
+                data-testid="nav-mobile-menu"
                 onClick={() => setMobileOpen((open) => !open)}
                 aria-expanded={mobileOpen}
                 aria-controls="mobile-navigation"
