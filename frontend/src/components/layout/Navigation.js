@@ -1,21 +1,12 @@
 /**
  * Navigation Component
- * 
- * Premium Enterprise-style navigation with:
- * - Full WCAG 2.1 AA accessibility compliance
- * - Emerald focus rings for keyboard navigation
- * - Responsive design
- * - Authentication-aware menu items
- * 
- * Accessibility Features:
- * - Skip link for keyboard users (WCAG 2.4.1)
- * - Proper ARIA roles and labels
- * - aria-current for active page indication
- * - Visible focus indicators
+ *
+ * Responsive, authentication-aware navigation with visible focus states,
+ * skip navigation and a compact mobile menu.
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Shield, Clock, Users } from 'lucide-react';
+import { Shield, Clock, Users, Menu, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import SkipLink from './SkipLink';
 import { NotificationBell } from '../common';
@@ -23,35 +14,56 @@ import { NotificationBell } from '../common';
 const Navigation = () => {
   const { user, logout, isAuthenticated } = useAuth();
   const location = useLocation();
-  
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
   const isActive = (path) => location.pathname === path;
-  
-  // Common link classes for focus rings - WCAG compliant
-  const linkBaseClasses = "px-4 py-2 rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400";
-  
+  const linkBaseClasses = "px-4 py-2 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400";
+
+  const authenticatedLinks = [
+    { to: '/', label: 'Dashboard', testId: 'nav-dashboard' },
+    { to: '/scan', label: 'New Scan', testId: 'nav-new-scan' },
+    { to: '/my-scans', label: 'My Scans', testId: 'nav-my-scans' },
+    { to: '/analytics', label: 'Analytics', testId: 'nav-analytics' },
+    { to: '/scheduled-scans', label: 'Scheduled', testId: 'nav-scheduled', icon: Clock },
+    { to: '/team', label: 'Team', testId: 'nav-team', icon: Users },
+    { to: '/pricing', label: 'Pricing', testId: 'nav-pricing' },
+  ];
+
+  const renderAuthLink = ({ to, label, testId, icon: Icon }, mobile = false) => (
+    <Link
+      key={to}
+      to={to}
+      data-testid={mobile ? `${testId}-mobile` : testId}
+      aria-current={isActive(to) ? 'page' : undefined}
+      className={`${linkBaseClasses} ${mobile ? 'w-full flex items-center gap-2' : 'inline-flex items-center gap-1'} ${
+        isActive(to)
+          ? 'bg-slate-800 text-white'
+          : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+      }`}
+    >
+      {Icon && <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />}
+      <span>{label}</span>
+    </Link>
+  );
+
   return (
     <>
-      {/* Skip to main content link for keyboard users - WCAG 2.4.1 */}
       <SkipLink />
-      
-      <nav 
-        className="bg-slate-900 border-b border-slate-800"
-        role="navigation"
-        aria-label="Main navigation"
-      >
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex justify-between items-center">
-            {/* Logo */}
-            <Link 
-              to="/" 
-              className="flex items-center space-x-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 rounded-lg" 
+
+      <nav className="bg-slate-900 border-b border-slate-800" aria-label="Main navigation">
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex justify-between items-center gap-4">
+            <Link
+              to="/"
+              className="flex items-center space-x-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 rounded-lg"
               data-testid="nav-logo"
               aria-label="Auditly - Go to homepage"
             >
-              <div 
-                className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center" 
-                aria-hidden="true"
-              >
+              <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center" aria-hidden="true">
                 <Shield className="w-6 h-6 text-white" aria-hidden="true" />
               </div>
               <div>
@@ -59,177 +71,96 @@ const Navigation = () => {
                 <span className="text-xs text-slate-400 block -mt-1">Accessibility Scanner</span>
               </div>
             </Link>
-            
-            {/* Navigation Links */}
-            <div className="flex items-center space-x-1" role="menubar">
+
+            <div className="hidden lg:flex items-center gap-1">
               {isAuthenticated ? (
                 <>
-                  <Link 
-                    to="/" 
-                    data-testid="nav-dashboard"
-                    role="menuitem"
-                    aria-current={isActive('/') ? 'page' : undefined}
-                    className={`${linkBaseClasses} ${
-                      isActive('/') 
-                        ? 'bg-slate-800 text-white' 
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
-                    }`}
-                  >
-                    Dashboard
-                  </Link>
-                  <Link 
-                    to="/scan" 
-                    data-testid="nav-new-scan"
-                    role="menuitem"
-                    aria-current={isActive('/scan') ? 'page' : undefined}
-                    className={`${linkBaseClasses} ${
-                      isActive('/scan') 
-                        ? 'bg-slate-800 text-white' 
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
-                    }`}
-                  >
-                    New Scan
-                  </Link>
-                  <Link 
-                    to="/my-scans" 
-                    data-testid="nav-my-scans"
-                    role="menuitem"
-                    aria-current={isActive('/my-scans') ? 'page' : undefined}
-                    className={`${linkBaseClasses} ${
-                      isActive('/my-scans') 
-                        ? 'bg-slate-800 text-white' 
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
-                    }`}
-                  >
-                    My Scans
-                  </Link>
-                  <Link 
-                    to="/analytics" 
-                    data-testid="nav-analytics"
-                    role="menuitem"
-                    aria-current={isActive('/analytics') ? 'page' : undefined}
-                    className={`${linkBaseClasses} ${
-                      isActive('/analytics') 
-                        ? 'bg-slate-800 text-white' 
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
-                    }`}
-                  >
-                    Analytics
-                  </Link>
-                  <Link 
-                    to="/scheduled-scans" 
-                    data-testid="nav-scheduled"
-                    role="menuitem"
-                    aria-current={isActive('/scheduled-scans') ? 'page' : undefined}
-                    className={`${linkBaseClasses} flex items-center space-x-1 ${
-                      isActive('/scheduled-scans') 
-                        ? 'bg-slate-800 text-white' 
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
-                    }`}
-                  >
-                    <Clock className="w-4 h-4" aria-hidden="true" />
-                    <span>Scheduled</span>
-                  </Link>
-                  <Link 
-                    to="/team" 
-                    data-testid="nav-team"
-                    role="menuitem"
-                    aria-current={isActive('/team') ? 'page' : undefined}
-                    className={`${linkBaseClasses} flex items-center space-x-1 ${
-                      isActive('/team') 
-                        ? 'bg-slate-800 text-white' 
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
-                    }`}
-                  >
-                    <Users className="w-4 h-4" aria-hidden="true" />
-                    <span>Team</span>
-                  </Link>
-                  <Link 
-                    to="/pricing" 
-                    data-testid="nav-pricing"
-                    role="menuitem"
-                    aria-current={isActive('/pricing') ? 'page' : undefined}
-                    className={`${linkBaseClasses} ${
-                      isActive('/pricing') 
-                        ? 'bg-slate-800 text-white' 
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
-                    }`}
-                  >
-                    Pricing
-                  </Link>
-                  
-                  {/* User Menu */}
-                  <div className="flex items-center ml-4 pl-4 border-l border-slate-700">
-                    <div className="flex items-center space-x-3">
-                      {/* Notifications Bell */}
-                      <NotificationBell />
-                      
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-white">
-                          {user?.full_name || user?.email?.split('@')[0]}
-                        </div>
-                        <div className="flex items-center justify-end space-x-2">
-                          <span 
-                            className={`text-xs px-2 py-0.5 rounded-full ${
-                              user?.plan === 'pro' 
-                                ? 'bg-emerald-500/20 text-emerald-300' 
-                                : 'bg-slate-700 text-slate-300'
-                            }`}
-                            aria-label={`Current plan: ${user?.plan}`}
-                          >
-                            {user?.plan?.toUpperCase()}
-                          </span>
-                          {user?.scans_remaining !== -1 && (
-                            <span 
-                              className="text-xs text-slate-400" 
-                              aria-label={`${user?.scans_remaining} scans remaining`}
-                            >
-                              {user?.scans_remaining} left
-                            </span>
-                          )}
-                        </div>
+                  {authenticatedLinks.map((item) => renderAuthLink(item))}
+                  <div className="flex items-center ml-3 pl-3 border-l border-slate-700">
+                    <NotificationBell />
+                    <div className="text-right ml-3">
+                      <div className="text-sm font-medium text-white max-w-32 truncate">
+                        {user?.full_name || user?.email?.split('@')[0]}
                       </div>
-                      <button
-                        onClick={logout}
-                        data-testid="nav-logout"
-                        aria-label="Log out of your account"
-                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                      >
-                        Logout
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full ${user?.plan === 'pro' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700 text-slate-300'}`}
+                          aria-label={`Current plan: ${user?.plan}`}
+                        >
+                          {user?.plan?.toUpperCase()}
+                        </span>
+                        {user?.scans_remaining !== -1 && (
+                          <span className="text-xs text-slate-400" aria-label={`${user?.scans_remaining} scans remaining`}>
+                            {user?.scans_remaining} left
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    <button
+                      onClick={logout}
+                      data-testid="nav-logout"
+                      className="ml-3 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                    >
+                      Log out
+                    </button>
                   </div>
                 </>
               ) : (
                 <>
-                  <Link 
-                    to="/pricing" 
-                    data-testid="nav-pricing-guest"
-                    role="menuitem"
-                    className="px-4 py-2 text-slate-300 hover:text-white text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded-lg"
-                  >
-                    Pricing
-                  </Link>
-                  <Link 
-                    to="/login" 
-                    data-testid="nav-login"
-                    role="menuitem"
-                    className="px-4 py-2 text-slate-300 hover:text-white text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded-lg"
-                  >
-                    Login
-                  </Link>
-                  <Link 
-                    to="/signup" 
-                    data-testid="nav-signup"
-                    role="menuitem"
-                    className="ml-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all shadow-lg shadow-emerald-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
-                  >
+                  <Link to="/pricing" data-testid="nav-pricing-guest" className={`${linkBaseClasses} text-slate-300 hover:text-white`}>Pricing</Link>
+                  <Link to="/login" data-testid="nav-login" className={`${linkBaseClasses} text-slate-300 hover:text-white`}>Log in</Link>
+                  <Link to="/signup" data-testid="nav-signup" className="ml-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-colors shadow-lg shadow-emerald-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900">
                     Start Free
                   </Link>
                 </>
               )}
             </div>
+
+            <div className="flex lg:hidden items-center gap-2">
+              {isAuthenticated && <NotificationBell />}
+              <button
+                type="button"
+                onClick={() => setMobileOpen((open) => !open)}
+                aria-expanded={mobileOpen}
+                aria-controls="mobile-navigation"
+                aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                className="w-11 h-11 inline-flex items-center justify-center rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+              >
+                {mobileOpen ? <X className="w-5 h-5" aria-hidden="true" /> : <Menu className="w-5 h-5" aria-hidden="true" />}
+              </button>
+            </div>
           </div>
+
+          {mobileOpen && (
+            <div id="mobile-navigation" className="lg:hidden mt-4 pt-4 border-t border-slate-800">
+              {isAuthenticated ? (
+                <div className="space-y-1">
+                  {authenticatedLinks.map((item) => renderAuthLink(item, true))}
+                  <div className="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{user?.full_name || user?.email?.split('@')[0]}</p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {user?.plan?.toUpperCase()}{user?.scans_remaining !== -1 ? ` · ${user?.scans_remaining} scans left` : ' · Unlimited scans'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={logout}
+                      data-testid="nav-logout-mobile"
+                      className="min-h-11 px-4 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                    >
+                      Log out
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Link to="/pricing" className={`${linkBaseClasses} block w-full text-slate-300 hover:text-white hover:bg-slate-800/50`}>Pricing</Link>
+                  <Link to="/login" className={`${linkBaseClasses} block w-full text-slate-300 hover:text-white hover:bg-slate-800/50`}>Log in</Link>
+                  <Link to="/signup" className="min-h-11 flex items-center justify-center w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-5 py-3 rounded-lg text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">Start Free</Link>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </nav>
     </>
